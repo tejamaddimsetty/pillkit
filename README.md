@@ -31,32 +31,26 @@ and end users can always hide.
 | Windows 10 | Taskbar, left of the tray | ✅ v0.1, hands-on test pending |
 | Linux (KDE, GNOME, …) | Tray item / GNOME Shell extension | 🗓 v0.3 |
 
-## Quick start (local)
+## Quick start
 
-```bash
-# 1. Server
-cd server && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env
-.venv/bin/python dev_seed.py          # prints APP_ID and KEY for a demo app
-.venv/bin/python app.py               # http://localhost:5050
+Clone or download the repo, then:
 
-# 2. Host (debug builds accept a dev server key)
-cargo build -p barkit-host
-BARKIT_PUBLIC_KEY=$(curl -s localhost:5050/v1/public-key | python3 -c 'import sys,json;print(json.load(sys.stdin)["key"])') \
-  ./target/debug/barkit-host run
+- **Windows:** double-click `install.cmd`
+- **macOS / Linux:** run `./install.sh`
 
-# 3. An app using the SDK
-node examples/node-demo.mjs <APP_ID> <KEY>
-```
+It sets up the local server, gets the host (downloaded from the latest release,
+or built with `cargo` if you have Rust), starts everything, opens the portal and
+registers a demo app. The widget appears next to your clock within seconds.
+Stop everything with `stop.cmd` / `./stop.sh`.
 
-Sign in at http://localhost:5050:
+Logins on your local copy:
 
 - `demo@barkit.dev` / `demo-password`: a developer, as your customers see it
-- `admin@barkit.dev` / `admin-password`: the platform admin console (local only)
+- `admin@barkit.dev` / `admin-password`: the platform admin console
 
 In production, create your own admin with `python app.py create-admin you@yourdomain.com`.
-
 Full documentation is served by the portal at http://localhost:5050/docs.
+Testing on Windows: [docs/WINDOWS_TESTING.md](docs/WINDOWS_TESTING.md).
 
 ## Using it in your app
 

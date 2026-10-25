@@ -4,6 +4,21 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.1.1] - 2026-10-26
+
+### Added
+- One-step local setup: double-click `install.cmd` (Windows) or run
+  `./install.sh` (macOS / Linux). Installs Python on Windows if needed,
+  downloads the host from the latest release, starts everything and opens
+  the portal. `stop.cmd` / `./stop.sh` to stop.
+- Release workflow: tagged versions publish host binaries to GitHub Releases.
+- `scripts/demo_app.py`: a dependency-free demo app (no Node needed).
+
+### Fixed
+- macOS: the pill no longer shrinks on a false "no room" signal; it now only
+  steps down when it's really pushed off screen or under the notch.
+- Windows: release builds no longer open a console window at login.
+
 ## [0.1.0] - 2026-10-26
 
 First public release. `barkit` is a working codename.

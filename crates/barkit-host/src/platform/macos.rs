@@ -18,7 +18,7 @@ use objc2_app_kit::{
     NSBoxType, NSButton, NSColor, NSEvent, NSEventMask, NSEventType, NSFont, NSImage,
     NSImageScaling, NSLineBreakMode, NSPanel, NSPopUpMenuWindowLevel, NSScreen, NSStatusBar,
     NSStatusItem, NSTextField, NSTitlePosition, NSVariableStatusItemLength, NSView,
-    NSWindowOcclusionState, NSWindowStyleMask,
+    NSWindowStyleMask,
 };
 use objc2_foundation::{
     CGFloat, MainThreadMarker, NSData, NSPoint, NSRect, NSSize, NSString, NSTimer,
@@ -44,6 +44,7 @@ pub struct Ivars {
     outside_since: Cell<Option<Instant>>,
     /// Index into SLOT_WIDTHS_PT; steps down if macOS has no room for us.
     width_step: Cell<usize>,
+    misses: Cell<u8>,
     shown_at: Cell<Option<Instant>>,
 }
 
@@ -247,7 +248,16 @@ impl Delegate {
         if shown.elapsed() < Duration::from_secs(1) || slot_width_override().is_some() {
             return;
         }
-        self.ivars().shown_at.set(None);
+        let recheck = || {
+            self.ivars()
+                .shown_at
+                .set(Some(Instant::now() + Duration::from_secs(1)))
+        };
+        // A hidden menu bar (full-screen app, auto-hide) occludes everything; that's
+        // not a lack of room, so wait for it to come back.
+        if !unsafe { objc2_app_kit::NSMenu::menuBarVisible(self.mtm()) } {
+            return recheck();
+        }
         let status = self.ivars().status.borrow().clone();
         let Some(window) = status
             .and_then(|s| unsafe { s.button(self.mtm()) })
@@ -255,20 +265,48 @@ impl Delegate {
         else {
             return;
         };
-        let visible = window
-            .occlusionState()
-            .contains(NSWindowOcclusionState::Visible);
+        let Some(screen) = window.screen().or_else(|| NSScreen::mainScreen(self.mtm())) else {
+            return;
+        };
+        // macOS's occlusion flag is unreliable for menu bar windows, so judge by
+        // position: an item that didn't fit is pushed off screen or under the notch.
+        let f = window.frame();
+        let sf = screen.frame();
+        let (left, right) = (f.origin.x, f.origin.x + f.size.width);
+        let off_screen =
+            !window.isVisible() || left < sf.origin.x || right > sf.origin.x + sf.size.width;
+        let (tl, tr) = unsafe {
+            (
+                screen.auxiliaryTopLeftArea(),
+                screen.auxiliaryTopRightArea(),
+            )
+        };
+        let under_notch = tl.size.width > 0.0
+            && tr.size.width > 0.0
+            && left < tr.origin.x
+            && right > tl.origin.x + tl.size.width;
+        if !off_screen && !under_notch {
+            self.ivars().misses.set(0);
+            self.ivars().shown_at.set(None);
+            return;
+        }
+        // Only shrink after two misses two seconds apart, so a slow first draw
+        // doesn't cost us width.
+        let misses = self.ivars().misses.get() + 1;
         let step = self.ivars().width_step.get();
-        if !visible && step + 1 < SLOT_WIDTHS_PT.len() {
-            self.ivars().width_step.set(step + 1);
-            log(format!(
-                "menu bar has no room for {} pt; trying {} pt",
-                SLOT_WIDTHS_PT[step],
-                SLOT_WIDTHS_PT[step + 1]
-            ));
-            if let Some(d) = self.ivars().display.borrow().clone() {
-                self.show(d);
-            }
+        if misses < 2 || step + 1 >= SLOT_WIDTHS_PT.len() {
+            self.ivars().misses.set(misses);
+            return recheck();
+        }
+        self.ivars().misses.set(0);
+        self.ivars().width_step.set(step + 1);
+        log(format!(
+            "menu bar has no room for {} pt; trying {} pt",
+            SLOT_WIDTHS_PT[step],
+            SLOT_WIDTHS_PT[step + 1]
+        ));
+        if let Some(d) = self.ivars().display.borrow().clone() {
+            self.show(d);
         }
     }
 
@@ -582,6 +620,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             hover_since: Cell::new(None),
             outside_since: Cell::new(None),
             width_step: Cell::new(0),
+            misses: Cell::new(0),
             shown_at: Cell::new(None),
         },
     );

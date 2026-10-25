@@ -1,0 +1,42 @@
+name: release
+
+# Push a tag like v0.1.1 to publish host binaries on a GitHub Release.
+# Release assets download without signing in, which is what install.cmd and
+# install.sh rely on.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  host:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: windows-x64, ext: ".exe" }
+          - { os: macos-latest, name: macos-arm64, ext: "" }
+          - { os: ubuntu-latest, name: linux-x64, ext: "" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release and dev hosts
+        shell: bash
+        env:
+          BARKIT_PUBLIC_KEY: ${{ secrets.BARKIT_PUBLIC_KEY }}
+        run: |
+          cargo build -p barkit-host --release
+          cargo build -p barkit-host
+          mkdir dist
+          cp target/release/barkit-host${{ matrix.ext }} dist/barkit-host-${{ matrix.name }}${{ matrix.ext }}
+          cp target/debug/barkit-host${{ matrix.ext }} dist/barkit-host-dev-${{ matrix.name }}${{ matrix.ext }}
+      - name: Upload to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "See CHANGELOG.md. Testing a build? Use the barkit-host-dev-* file for your OS (install.cmd / install.sh fetch it for you)." || true
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber

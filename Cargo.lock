@@ -28,7 +28,7 @@ checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
 name = "barkit-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "barkit-host"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "barkit-core",
  "base64",

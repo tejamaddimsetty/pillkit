@@ -6,6 +6,9 @@
 //!   barkit-host render IN OUT    render an item JSON file to a PNG (design preview)
 //!   barkit-host --version
 
+// Release builds on Windows have no console window (the host starts at login).
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod autostart;
 mod controller;
 mod ipc;

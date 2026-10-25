@@ -1,33 +1,32 @@
 # Testing the taskbar widget on Windows
 
-The Windows code compiles in CI but has not yet run on real hardware. This is
-the checklist for the first hands-on test.
+## 1. Install (one double-click)
 
-## 1. Get the host
+1. On GitHub, click **Code → Download ZIP** (or `git clone https://github.com/tejamaddimsetty/barkit`) and unzip it.
+2. Double-click **`install.cmd`** in the folder.
 
-1. Open the repository on GitHub → **Actions** → the latest green **ci** run.
-2. Download the artifact **`barkit-host-dev-Windows-X64`** and unzip it. It contains `barkit-host.exe`.
-   (Use the *dev* build: it trusts your local test server. The non-dev build only trusts production.)
+That's it. The installer:
 
-Windows SmartScreen may warn because the file isn't code-signed yet: choose **More info → Run anyway**.
+- installs Python for your user if it's missing (it asks first, using `winget`)
+- sets up the local server and a demo account
+- downloads `barkit-host` from the latest GitHub release
+- starts everything, opens the portal, and registers a demo app
 
-## 2. Get the code and tools
+Within a few seconds the pill appears in the taskbar and rotates between your
+items. Double-click **`stop.cmd`** to stop everything. Running `install.cmd`
+again restarts it (and skips setup that's already done).
 
-- Install **Python 3.10+** (tick "Add to PATH") and **Node 18+**.
-- `git clone https://github.com/tejamaddimsetty/barkit` (or download the ZIP).
+If Windows asks "Do you want to allow this app?" or SmartScreen warns, choose
+**More info → Run anyway**: the files aren't code-signed yet.
 
-## 3. Run it
+Options (run from a terminal in the folder):
 
 ```powershell
-cd barkit
-powershell -ExecutionPolicy Bypass -File scripts\windows-test.ps1 -HostExe C:\path\to\barkit-host.exe
+install.cmd -Mode overlay     # force a mode: auto | embedded | overlay | tray
+install.cmd -Update           # re-download the newest host
 ```
 
-This starts a local server, the host and a demo app. Within a few seconds the
-pill should appear in the taskbar and rotate between "Acme Cloud" and
-"Build passed". Add your own items at http://localhost:5050 (`demo@barkit.dev` / `demo-password`).
-
-## 4. What to check
+## 2. What to check
 
 Note the result of each, with a screenshot if anything looks off.
 
@@ -43,16 +42,11 @@ Note the result of each, with a screenshot if anything looks off.
 | 8 | Display scaling 125 % / 150 % | Pill stays sharp and correctly sized |
 | 9 | Second monitor | Note what happens (main taskbar only is expected for v0.1) |
 | 10 | Light and dark mode | Pill uses its own colours; check it reads well on both |
-| 11 | `-Mode overlay` and `-Mode tray` | Overlay: same spot, floats on top. Tray: an icon with a tooltip |
+| 11 | `install.cmd -Mode overlay` and `-Mode tray` | Overlay: same spot, floats on top. Tray: an icon with a tooltip |
+| 12 | Add or edit an item in the portal | Shows in the taskbar within ~15 s |
 
-## 5. Send back
+## 3. Send back
 
 - Screenshots of the taskbar for checks 1–3
 - `%LOCALAPPDATA%\barkit\host.log` (it says which mode was used and why it fell back)
 - Windows version: run `winver`
-
-## Cleaning up
-
-```powershell
-C:\path\to\barkit-host.exe uninstall
-```

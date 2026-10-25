@@ -1,6 +1,6 @@
 {
   "name": "@barkit/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Put your app in the macOS menu bar and the Windows taskbar.",
   "license": "Apache-2.0",
   "type": "module",
@@ -8,6 +8,6 @@
   "types": "index.d.ts",
   "files": ["index.js", "index.d.ts", "bin/", "README.md"],
   "engines": { "node": ">=18" },
-  "barkit": { "hostVersion": "0.1.0" },
+  "barkit": { "hostVersion": "0.1.1" },
   "keywords": ["menu bar", "taskbar", "tray", "widget", "electron", "sponsor"]
 }
