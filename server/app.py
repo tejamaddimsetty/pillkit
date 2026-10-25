@@ -270,7 +270,10 @@ def create_app(config=None):
         my_apps = []
         if g.user and not g.user["is_admin"]:
             my_apps = many(select(db.apps.c.id, db.apps.c.name).where(db.apps.c.developer_id == g.user["id"]).order_by(db.apps.c.created_at))
-        return {"user": g.user, "csrf": session.get("csrf", ""), "price": app.config["LIFETIME_PRICE"], "my_apps": my_apps}
+        # Changes whenever style.css does, so browsers never keep a stale copy.
+        css_v = int(os.path.getmtime(os.path.join(app.static_folder, "style.css")))
+        return {"user": g.user, "csrf": session.get("csrf", ""), "price": app.config["LIFETIME_PRICE"],
+                "my_apps": my_apps, "css_v": css_v}
 
     def login_required(fn):
         @wraps(fn)
