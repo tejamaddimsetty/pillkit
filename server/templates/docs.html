@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Docs · barkit{% endblock %}
+{% block body %}
+<div class="docs">
+  <aside class="docs-nav">
+    <b>Get started</b>
+    <a href="#overview">Overview</a>
+    <a href="#quickstart">Quickstart</a>
+    <a href="#licence">Licence and review</a>
+    <b>Build</b>
+    <a href="#sdk">Node / Electron SDK</a>
+    <a href="#items">Items</a>
+    <a href="#actions">Click actions</a>
+    <a href="#api">Server API</a>
+    <b>Platforms</b>
+    <a href="#macos">macOS</a>
+    <a href="#windows">Windows</a>
+    <a href="#linux">Linux</a>
+    <b>Reference</b>
+    <a href="#host">The host</a>
+    <a href="#security">Security</a>
+    <a href="#troubleshooting">Troubleshooting</a>
+  </aside>
+
+  <article class="docs-body">
+    <h1 id="overview">barkit docs</h1>
+    <p class="lead">barkit puts a small widget from your app next to the clock: the macOS menu bar and the Windows taskbar. Use it for sponsors you sign yourself, launches, or live status. Every item is signed, labelled, and can be hidden by the person using the computer.</p>
+    <pre><code>your app ──(SDK)──▶ barkit-host ──(HTTPS, signed)──▶ barkit server
+                        │
+                        └── draws the widget in the menu bar / taskbar</code></pre>
+    <ul>
+      <li><b>Your app</b> ships the SDK. It talks to the host over a local socket.</li>
+      <li><b>barkit-host</b> is one small program per user. It owns the slot, so several apps share it fairly instead of fighting. It keeps showing your items when your app is closed.</li>
+      <li><b>The barkit server</b> (this site) holds your items and signs everything the host shows.</li>
+    </ul>
+
+    <h2 id="quickstart">Quickstart</h2>
+    <ol class="steps">
+      <li><b>Apply for a licence.</b> <a href="{{ url_for('apply') }}">Apply here</a>. We review every developer by hand.</li>
+      <li><b>Register your app</b> on your dashboard. You get an <code>appId</code> and a publishable key (<code>pk_…</code>).</li>
+      <li><b>Allow your links.</b> In the app's Settings, add every site or app scheme your items may open, such as <code>https://acme.com/</code> or <code>acmeclip://</code>.</li>
+      <li><b>Create an item.</b> Title, subtitle, icon, colours, and what happens on click. The editor shows a live preview.</li>
+      <li><b>Add the SDK</b> and call <code>start()</code>. Your item appears next to the clock within a few minutes.</li>
+    </ol>
+<pre><code>npm install @barkit/sdk</code></pre>
+<pre><code>import { Barkit } from "@barkit/sdk";
+
+const bar = await Barkit.start({
+  appId: "app_…",
+  key: "pk_…",
+  bundleId: "com.acme.clip",   // must match the portal, if you set one there
+});</code></pre>
+
+    <h2 id="licence">Licence and review</h2>
+    <p>barkit uses a one-time <b>lifetime developer licence</b>. It covers 3 apps with up to 20 items each.</p>
+    <ul>
+      <li><b>Pending:</b> you can sign in and look around.</li>
+      <li><b>Approved, invoice open:</b> everything works; items carry a small <i>barkit dev</i> label.</li>
+      <li><b>Active:</b> paid, no label.</li>
+      <li><b>Revoked or suspended:</b> your items switch off.</li>
+    </ul>
+
+    <h2 id="sdk">Node / Electron SDK</h2>
+    <table class="ref">
+      <tr><th>Call</th><th>What it does</th></tr>
+      <tr><td><code>Barkit.start(opts)</code></td><td>Connects to the host (installing and starting it the first time) and registers your app. Returns a <code>Barkit</code>.</td></tr>
+      <tr><td><code>bar.show(item)</code></td><td>Shows your own item, such as a build status. It joins the rotation with your portal items.</td></tr>
+      <tr><td><code>bar.clear()</code></td><td>Removes the items you showed with <code>show()</code>.</td></tr>
+      <tr><td><code>bar.status()</code></td><td>Licence state, item counts and the last error.</td></tr>
+      <tr><td><code>bar.on("callback", fn)</code></td><td>Runs when someone clicks an item whose action is a callback.</td></tr>
+      <tr><td><code>bar.unregister()</code></td><td>Stops showing anything for this app, even after restarts.</td></tr>
+      <tr><td><code>bar.close()</code></td><td>Disconnects. Portal items keep showing.</td></tr>
+    </table>
+    <p><b>Options:</b> <code>appId</code>, <code>key</code>, <code>bundleId</code>, <code>server</code> (defaults to the barkit cloud), <code>hostPath</code> (a custom host binary).</p>
+    <p><b>Electron:</b> the host binary must sit outside the asar archive. Add <code>"asarUnpack": ["**/node_modules/@barkit/sdk/bin/**"]</code> to your electron-builder config.</p>
+<pre><code>await bar.show({
+  id: "build",
+  title: "Build passed",
+  subtitle: "main · 2 minutes ago",
+  theme: { background: "#1F7A4D", foreground: "#FFFFFF" },
+  action: { type: "callback", name: "open-build" },
+});
+bar.on("callback", (e) => openBuildWindow(e.item_id));</code></pre>
+
+    <h2 id="items">Items</h2>
+    <p>Every item is drawn in the same 224 × 29 pt slot, so sponsors and status messages line up and the bar never jumps.</p>
+    <table class="ref">
+      <tr><th>Field</th><th>Limit</th><th>Notes</th></tr>
+      <tr><td><code>title</code></td><td>40 chars</td><td>Bold first line. Required.</td></tr>
+      <tr><td><code>subtitle</code></td><td>60 chars</td><td>Second line.</td></tr>
+      <tr><td><code>label</code></td><td>16 chars</td><td>Small tag on the right. Sponsored items always have one (default "Sponsored").</td></tr>
+      <tr><td><code>icon</code></td><td>64 KB PNG</td><td>Upload any image in the editor; it's resized to 128 px. Without one, the first letter is used.</td></tr>
+      <tr><td><code>theme</code></td><td>hex colours</td><td><code>background</code> and <code>foreground</code>.</td></tr>
+      <tr><td><code>card.body</code></td><td>280 chars</td><td>Text in the card that opens on hover. Defaults to the subtitle.</td></tr>
+      <tr><td><code>weight</code></td><td>1–100</td><td>Higher shows more often within your app's turn.</td></tr>
+      <tr><td><code>duration_secs</code></td><td>5–300</td><td>How long it stays before the next item.</td></tr>
+      <tr><td><code>starts_at</code> / <code>ends_at</code></td><td>Unix time</td><td>Schedule a launch or end a campaign automatically.</td></tr>
+    </table>
+    <p><b>Rotation:</b> apps take turns in the slot. Within your turn, your items rotate by weight.</p>
+
+    <h2 id="actions">Click actions</h2>
+    <table class="ref">
+      <tr><th>Type</th><th>Field</th><th>What happens</th></tr>
+      <tr><td><code>open_url</code></td><td><code>url</code></td><td>Opens a web page in the default browser.</td></tr>
+      <tr><td><code>deep_link</code></td><td><code>url</code></td><td>Opens a page in an app, like <code>acmeclip://settings</code>.</td></tr>
+      <tr><td><code>callback</code></td><td><code>name</code></td><td>Tells your running app, through <code>bar.on("callback")</code>.</td></tr>
+      <tr><td><code>card</code></td><td></td><td>Opens the card.</td></tr>
+    </table>
+    <p>Links only open if they start with one of the app's <b>allowed URL prefixes</b>. A bare domain such as <code>https://acme.com</code> counts as <code>https://acme.com/</code>. <code>file:</code>, <code>javascript:</code> and similar are always blocked.</p>
+    <p>Hovering for half a second, or right-clicking, opens the card with the item's buttons plus <b>Hide</b> and <b>Why this?</b>.</p>
+
+    <h2 id="api">Server API</h2>
+    <p>Manage items from your own backend with the app's <b>secret key</b> (<code>sk_…</code>, shown once in Settings). Never ship it in your app.</p>
+<pre><code>curl {{ request.host_url }}v1/items \
+  -H "Authorization: Bearer sk_…" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "v2.1 is out", "kind": "status",
+       "action": {"type": "deep_link", "url": "acmeclip://changelog"}}'</code></pre>
+    <table class="ref">
+      <tr><th>Endpoint</th><th>Key</th><th>Purpose</th></tr>
+      <tr><td><code>GET /v1/items</code></td><td>secret</td><td>List your items.</td></tr>
+      <tr><td><code>POST /v1/items</code></td><td>secret</td><td>Create an item (same fields as above).</td></tr>
+      <tr><td><code>DELETE /v1/items/:id</code></td><td>secret</td><td>Delete an item.</td></tr>
+      <tr><td><code>POST /v1/license</code></td><td>publishable</td><td>Used by the host: a signed licence.</td></tr>
+      <tr><td><code>GET /v1/feed</code></td><td>publishable</td><td>Used by the host: signed items.</td></tr>
+      <tr><td><code>POST /v1/events</code></td><td>publishable</td><td>Used by the host: shown and click counts.</td></tr>
+      <tr><td><code>GET /v1/public-key</code></td><td>none</td><td>The key hosts use to check signatures.</td></tr>
+    </table>
+
+    <h2 id="macos">macOS</h2>
+    <p>A menu bar item to the left of the system icons. The pill is as tall as the menu bar allows (about 29 pt on a 33 pt bar). If macOS has no room beside the notch, the host steps down to a narrower width automatically. The host starts at login through a LaunchAgent, which appears in System Settings › General › Login Items.</p>
+
+    <h2 id="windows">Windows</h2>
+    <p>Windows has no public API for the taskbar, so the host tries three modes in order:</p>
+    <ol>
+      <li><b>Embedded:</b> the pill becomes part of the taskbar. On Windows 11 it sits on the left, where the weather widget lives, or beside it if the widget is on. On Windows 10 it sits just left of the tray.</li>
+      <li><b>Overlay:</b> a small always-on-top window over the same spot, hidden during full-screen apps.</li>
+      <li><b>Tray:</b> a notification-area icon with a tooltip. Always works.</li>
+    </ol>
+    <p>Force a mode with <code>BARKIT_WIN_MODE=embedded|overlay|tray</code>. No code is injected into Explorer, so antivirus stays quiet. The host starts at login from <code>HKCU\…\Run</code>; no admin rights needed. Right-click opens the menu (the hover card is coming to Windows).</p>
+
+    <h2 id="linux">Linux</h2>
+    <p>Planned: a tray item for KDE, Mint and XFCE, and a GNOME Shell extension. The host already runs on Linux for development and logs what it would show.</p>
+
+    <h2 id="host">The host</h2>
+<pre><code>barkit-host run                     # what the login entry runs
+barkit-host install                 # copy to the user data folder, start at login
+barkit-host uninstall               # remove it and its cache
+barkit-host render item.json out.png
+barkit-host --version</code></pre>
+    <p>Data folder: <code>~/Library/Application Support/barkit</code> (macOS), <code>%LOCALAPPDATA%\barkit</code> (Windows). The log is <code>host.log</code> in that folder. When several apps bundle different host versions, the newest one wins.</p>
+
+    <h2 id="security">Security</h2>
+    <ul>
+      <li>Licences and items are signed with Ed25519. The host rejects anything else.</li>
+      <li>Links are limited to each app's allowlist.</li>
+      <li>The local socket is per user; a process still can't show anything without a valid licence.</li>
+      <li>No personal data is collected; events are daily counts per item.</li>
+    </ul>
+    <p>Report a vulnerability: see <a href="https://github.com/tejamaddimsetty/barkit/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+    <dl class="faq">
+      <dt>My item doesn't appear.</dt>
+      <dd>Check it's switched on and not scheduled in the future. Hosts check for new items every few minutes. <code>bar.status()</code> shows the licence state and last error.</dd>
+      <dt>"This app can only open URLs you've allowed".</dt>
+      <dd>Add the link's site to the app's allowed URL prefixes, or use the one-click "Allow and save" button in the editor.</dd>
+      <dt>It shows "barkit dev".</dt>
+      <dd>Your licence invoice is still open. The label disappears once it's marked paid.</dd>
+      <dt>The widget vanished on macOS.</dt>
+      <dd>The menu bar ran out of room. Quit an app with menu bar icons; the host also shrinks the pill to fit.</dd>
+      <dt>Nothing on Windows.</dt>
+      <dd>Check <code>%LOCALAPPDATA%\barkit\host.log</code>. Try <code>BARKIT_WIN_MODE=overlay</code> or <code>tray</code>.</dd>
+    </dl>
+  </article>
+</div>
+{% endblock %}

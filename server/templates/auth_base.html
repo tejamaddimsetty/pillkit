@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}barkit{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='logo.svg') }}" type="image/svg+xml">
+</head>
+<body class="auth-body">
+<main class="auth">
+  <section class="auth-form">
+    <a class="brand" href="{{ url_for('index') }}">{% include "_logo.html" %}<span>barkit</span></a>
+    <div class="auth-inner">
+      {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+      {% block form %}{% endblock %}
+    </div>
+    <footer class="auth-foot muted"><a href="{{ url_for('why') }}">How barkit treats end users</a></footer>
+  </section>
+
+  <section class="auth-show" aria-hidden="true">
+    <div class="show-inner">
+      <h2>Your app, next to the clock.</h2>
+      <p>Sponsors, launches and live status in the macOS menu bar and the Windows taskbar. Signed, labelled, and yours to control.</p>
+
+      <div class="show-mac">
+        <div class="mac-bar">
+          <span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span>
+          <span class="grow"></span>
+          <span class="rot">
+            <span class="slot r1" style="background:#E8F04A;color:#2A2C05"><b style="background:#2A2C05;color:#E8F04A">A</b><span class="txt"><strong>Acme Cloud</strong><small>Deploy in 30s. Try free.</small></span><em style="background:#2A2C0524">Ad</em></span>
+            <span class="slot r2" style="background:#1F7A4D;color:#fff"><b style="background:#fff;color:#1F7A4D">B</b><span class="txt"><strong>Build passed</strong><small>main · 2 minutes ago</small></span></span>
+            <span class="slot r3" style="background:#111;color:#fff"><b style="background:#fff;color:#111">S</b><span class="txt"><strong>Stacks India</strong><small>Invite-only founder community</small></span><em style="background:#ffffff30">Ad</em></span>
+          </span>
+          <span class="mac-icons"></span><span>9:41</span>
+        </div>
+        <div class="show-card">
+          <div class="hc-top"><span>Sponsored</span><span>Hide · Why this?</span></div>
+          <div class="hc-title">Acme Cloud</div>
+          <div class="hc-body">Deploy any repo in 30 seconds. First month free.</div>
+          <span class="hc-primary">Open site</span>
+        </div>
+      </div>
+
+      <div class="show-win">
+        <span class="rot">
+          <span class="slot r1" style="background:#E8F04A;color:#2A2C05"><b style="background:#2A2C05;color:#E8F04A">A</b><span class="txt"><strong>Acme Cloud</strong><small>Deploy in 30s. Try free.</small></span><em style="background:#2A2C0524">Ad</em></span>
+          <span class="slot r2" style="background:#1F7A4D;color:#fff"><b style="background:#fff;color:#1F7A4D">B</b><span class="txt"><strong>Build passed</strong><small>main · 2 minutes ago</small></span></span>
+          <span class="slot r3" style="background:#111;color:#fff"><b style="background:#fff;color:#111">S</b><span class="txt"><strong>Stacks India</strong><small>Invite-only founder community</small></span><em style="background:#ffffff30">Ad</em></span>
+        </span>
+        <span class="grow"></span>
+        <span class="win-apps"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="grow"></span>
+        <span class="win-clock">9:41 AM<br>10/26/2026</span>
+      </div>
+
+      <ul class="show-points">
+        <li><b>3 lines</b> to integrate, in any stack</li>
+        <li><b>One shared slot</b>, fair rotation between apps</li>
+        <li><b>Lifetime licence</b>, you keep 100% of sponsor revenue</li>
+      </ul>
+    </div>
+  </section>
+</main>
+<script>
+  document.querySelectorAll("[data-reveal]").forEach((b) => b.addEventListener("click", () => {
+    const i = document.getElementById(b.dataset.reveal);
+    i.type = i.type === "password" ? "text" : "password";
+    b.textContent = i.type === "password" ? "Show" : "Hide";
+  }));
+</script>
+</body>
+</html>

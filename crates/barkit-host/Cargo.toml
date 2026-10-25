@@ -1,0 +1,38 @@
+[package]
+name = "barkit-host"
+description = "The per-user process that owns the bar slot and draws the widget"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "barkit-host"
+path = "src/main.rs"
+
+[dependencies]
+barkit-core = { path = "../barkit-core" }
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+ureq = { version = "2.10", default-features = false, features = ["json", "native-tls"] }
+native-tls = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5.2"
+objc2-foundation = { version = "0.2.2", features = ["NSString", "NSData", "NSGeometry", "NSTimer", "NSRunLoop", "NSDate", "NSObject", "NSThread"] }
+objc2-app-kit = { version = "0.2.2", features = ["NSApplication", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView", "NSResponder", "NSImage", "NSMenu", "NSMenuItem", "NSScreen", "NSEvent", "NSRunningApplication", "NSCell", "NSButtonCell", "NSActionCell", "NSPanel", "NSWindow", "NSGraphics", "NSBox", "NSColor", "NSFont", "NSText", "NSTextField", "NSParagraphStyle", "NSLayoutConstraint", "NSImageCell"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Pipes",
+  "Win32_System_Registry",
+  "Win32_System_IO",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }

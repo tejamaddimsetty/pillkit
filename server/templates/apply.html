@@ -1,0 +1,20 @@
+{% extends "auth_base.html" %}
+{% block title %}Apply · barkit{% endblock %}
+{% block form %}
+<h1>Apply for a licence</h1>
+<p class="muted">We review every developer by hand, usually within two working days. You can sign in and look around while you wait.</p>
+<form method="post" class="auth-fields">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="two"><label>Your name<input name="name" value="{{ form.name }}" autocomplete="name" required></label>
+  <label>Country<input name="country" value="{{ form.country }}" autocomplete="country-name"></label></div>
+  <label>Email<input name="email" type="email" value="{{ form.email }}" autocomplete="email" required placeholder="you@company.com"></label>
+  <label>Password <small class="muted">10+ characters</small>
+    <span class="pw"><input name="password" id="pw" type="password" minlength="10" autocomplete="new-password" required><button type="button" class="reveal" data-reveal="pw">Show</button></span>
+  </label>
+  <div class="two"><label>Company or project<input name="company" value="{{ form.company }}" autocomplete="organization"></label>
+  <label>Website or repo<input name="website" value="{{ form.website }}" placeholder="github.com/you/app"></label></div>
+  <label>What will you show in the bar, and in which app?<textarea name="use_case" rows="3" required placeholder="Our clipboard app Acme Clip will show sponsors we sign ourselves, plus release news.">{{ form.use_case }}</textarea></label>
+  <button class="btn block">Submit application</button>
+</form>
+<p class="muted">Already applied? <a href="{{ url_for('login') }}">Sign in</a></p>
+{% endblock %}

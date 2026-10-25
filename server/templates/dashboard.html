@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "_macros.html" import spark %}
+{% block title %}Dashboard · barkit{% endblock %}
+{% block body %}
+<div class="dash-head">
+  <h1>Hi {{ user.name.split(' ')[0] }}</h1>
+  {% if user.status == 'approved' and lic %}
+    {% if lic.status == 'active' %}<span class="tag ok">Lifetime licence</span>
+    {% elif lic.status == 'awaiting_payment' %}<span class="tag warn">Invoice pending · dev mode</span>
+    {% else %}<span class="tag err">Licence revoked</span>{% endif %}
+  {% endif %}
+</div>
+
+{% if pending %}
+<a class="notice" href="{{ url_for('admin') }}"><b>{{ pending }}</b> developer{{ 's' if pending != 1 }} waiting for review <span>Review →</span></a>
+{% endif %}
+
+{% if user.status == 'pending' %}
+  <div class="card status"><span class="tag warn">In review</span><p>Thanks for applying. We review every developer by hand and will email <b>{{ user.email }}</b> when you're approved.</p></div>
+{% elif user.status == 'rejected' %}
+  <div class="card status"><span class="tag err">Not approved</span><p>We couldn't approve this application.{% if user.review_note %} {{ user.review_note }}{% endif %}</p></div>
+{% elif user.status == 'suspended' %}
+  <div class="card status"><span class="tag err">Suspended</span><p>Your account is suspended and your items are switched off.{% if user.review_note %} {{ user.review_note }}{% endif %}</p></div>
+{% elif lic and lic.status == 'revoked' %}
+  <div class="card status"><span class="tag err">Licence revoked</span><p>Contact us if you think this is a mistake.</p></div>
+{% elif lic %}
+  {% if lic.status == 'awaiting_payment' %}
+  <p class="muted dev-note">You're approved. We'll email your lifetime licence invoice{% if price %} ({{ price }}){% endif %}. Until it's paid, everything works and items carry a small <i>barkit dev</i> label.</p>
+  {% endif %}
+
+  <div class="section-head apps-head"><h2>Your apps <span class="muted">{{ apps|length }} of {{ lic.max_apps }}</span></h2>
+    {% if apps and apps|length < lic.max_apps %}<button type="button" class="btn" onclick="const d=document.getElementById('new-app');d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});d.querySelector('input[name=name]').focus()">+ New app</button>{% endif %}
+  </div>
+  <div class="app-grid">
+    {% for a in apps %}
+    <a class="app-card" href="{{ url_for('app_detail', app_id=a.id) }}">
+      <div class="app-thumb">
+        <div class="mini-bar"><span class="grow"></span>
+          {% if a.top %}{% set t = a.top %}
+          <span class="slot" style="background:{{ t.background }};color:{{ t.foreground }}">{% if t.icon_png %}<img class="icon" src="data:image/png;base64,{{ t.icon_png }}" alt="">{% else %}<b style="background:{{ t.foreground }};color:{{ t.background }}">{{ t.title[:1] }}</b>{% endif %}<span class="txt"><strong>{{ t.title }}</strong><small>{{ t.subtitle }}</small></span>{% if t.label %}<em style="background:{{ t.foreground }}24">{{ t.label }}</em>{% endif %}</span>
+          {% else %}<span class="slot empty-slot">Your item goes here</span>{% endif %}
+          <span class="clock">9:41</span>
+        </div>
+      </div>
+      <div class="app-body">
+        <div class="app-title"><b>{{ a.name }}</b>{% if a.live %}<span class="badge live"><i></i>Live</span>{% else %}<span class="badge"><i></i>Not live</span>{% endif %}</div>
+        <code class="app-id">{{ a.id }}</code>
+        <div class="app-stats">
+          <span><b>{{ a.live }}</b> live</span>
+          <span><b>{{ '{:,}'.format(a.stats.imp_total) }}</b> shown</span>
+          <span><b>{{ '{:,}'.format(a.stats.clk_total) }}</b> clicks</span>
+          <span class="spark-cell">{{ spark(a.stats.imp, 72, 20) }}</span>
+        </div>
+      </div>
+      {% if a.next %}<div class="app-next">Next: {{ a.next[0] }} →</div>{% else %}<div class="app-next done">All set · open to manage items</div>{% endif %}
+    </a>
+    {% endfor %}
+
+    {% if apps|length < lic.max_apps %}
+    <details class="app-card new-app" id="new-app" {{ 'open' if not apps }}>
+      <summary><span class="plus">+</span><b>New app</b><span class="muted">Register an app to get its keys</span></summary>
+      <form method="post" action="{{ url_for('create_app_route') }}" class="new-app-form">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>App name<input name="name" placeholder="Acme Clipboard" required></label>
+        <label>Bundle ID <small class="muted">optional</small><input name="bundle_id" placeholder="com.acme.clipboard"></label>
+        <button class="btn block">Create app</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

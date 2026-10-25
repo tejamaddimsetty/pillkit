@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% from "_macros.html" import chart %}
+{% block title %}{{ 'Edit item' if item else 'New item' }} · {{ a.name }} · barkit{% endblock %}
+{% block body %}
+<p><a href="{{ url_for('app_detail', app_id=a.id) }}">← {{ a.name }}</a></p>
+<div class="page-head">
+  <h1>{{ 'Edit item' if item else 'New item' }}</h1>
+  {% if item %}<span class="status-chip"><span class="dot {{ status_label }}"></span>{{ status_label|capitalize }}</span>{% endif %}
+</div>
+
+{% if stats %}
+<div class="card flush">
+  <div class="metrics">
+    <div class="metric on"><span>Shown</span><b>{{ '{:,}'.format(stats.imp_total) }}</b></div>
+    <div class="metric"><span>Clicks</span><b>{{ '{:,}'.format(stats.clk_total) }}</b></div>
+    <div class="metric"><span>Click rate</span><b>{{ '%.1f'|format(stats.ctr) }}%</b></div>
+  </div>
+  <div class="chart-wrap">{{ chart(stats.imp, stats.clk, stats.days, h=120) }}
+    <div class="legend"><span class="k-imp"></span>Shown <span class="k-clk"></span>Clicks <span class="muted">· last 30 days</span></div>
+  </div>
+</div>
+{% endif %}
+
+<form id="editor" class="editor" method="post" enctype="multipart/form-data"
+      action="{{ url_for('update_item', app_id=a.id, item_id=item.id) if item else url_for('add_item', app_id=a.id) }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="tz_offset" id="tz">
+  {% if form.get('icon_png') %}<input type="hidden" name="icon_keep" id="icon-keep" value="{{ form.get('icon_png') }}">{% endif %}
+  {% set kind = form.get('kind', 'sponsored') %}{% set act = form.get('action_type', 'open_url') %}
+
+  <div class="editor-form card">
+    {% if suggest %}
+    <div class="fix">
+      <span>Your link goes to <code>{{ suggest }}</code>, which this app isn't allowed to open yet.</span>
+      <button class="btn small" name="allow_domain" value="1">Allow and save</button>
+    </div>
+    {% endif %}
+
+    <section>
+      <h3><span class="n">1</span>What it says</h3>
+      <label>Title <span class="count" data-for="title">0/40</span>
+        <input name="title" maxlength="40" required placeholder="Stacks India" value="{{ form.get('title', '') }}" autofocus></label>
+      <label>Subtitle <span class="count" data-for="subtitle">0/60</span>
+        <input name="subtitle" maxlength="60" placeholder="Invite-only founder community" value="{{ form.get('subtitle', '') }}"></label>
+      <div class="icon-row">
+        <div class="icon-drop" id="icon-drop" title="Upload an icon">
+          <img id="icon-img" alt="" {% if form.get('icon_png') %}src="data:image/png;base64,{{ form.get('icon_png') }}"{% else %}hidden{% endif %}>
+          <span id="icon-ph" {% if form.get('icon_png') %}hidden{% endif %}>+</span>
+        </div>
+        <div>
+          <b>Icon</b>
+          <p class="muted">PNG, JPEG, WebP or GIF. Transparent and square looks best.</p>
+          <label class="link-btn">Upload<input type="file" name="icon" id="icon" accept="image/png,image/jpeg,image/webp,image/gif" hidden></label>
+          <label class="link-btn" id="icon-remove-wrap" {% if not form.get('icon_png') %}hidden{% endif %}><input type="checkbox" name="icon_remove" id="icon-remove" hidden>Use a letter instead</label>
+        </div>
+      </div>
+      <div class="kind">
+        <label class="seg"><input type="radio" name="kind" value="sponsored" {{ 'checked' if kind == 'sponsored' }}><span>Sponsored</span></label>
+        <label class="seg"><input type="radio" name="kind" value="status" {{ 'checked' if kind == 'status' }}><span>My own news or status</span></label>
+        <input name="label" maxlength="16" class="label-in" placeholder="Sponsored" value="{{ form.get('label', '') }}" aria-label="Label shown on the pill">
+      </div>
+    </section>
+
+    <section>
+      <h3><span class="n">2</span>How it looks</h3>
+      <div class="swatches" role="group" aria-label="Colour presets">
+        {% for bg, fg, name in [('#E8F04A','#2A2C05','Lime'),('#111111','#FFFFFF','Black'),('#FFFFFF','#111111','White'),('#2563EB','#FFFFFF','Blue'),('#1F7A4D','#FFFFFF','Green'),('#F472B6','#3B0A23','Pink'),('#F97316','#FFFFFF','Orange')] %}
+        <button type="button" class="swatch" data-bg="{{ bg }}" data-fg="{{ fg }}" style="background:{{ bg }};color:{{ fg }}" title="{{ name }}">Aa</button>
+        {% endfor %}
+        <label class="swatch custom" title="Background colour"><input type="color" name="background" value="{{ form.get('background', '#E8F04A') }}"></label>
+        <label class="swatch custom" title="Text colour"><input type="color" name="foreground" value="{{ form.get('foreground', '#2A2C05') }}"></label>
+      </div>
+    </section>
+
+    <section>
+      <h3><span class="n">3</span>When someone clicks</h3>
+      <select name="action_type">
+        <option value="open_url" {{ 'selected' if act == 'open_url' }}>Open a web page</option>
+        <option value="deep_link" {{ 'selected' if act == 'deep_link' }}>Open a page in my app</option>
+        <option value="callback" {{ 'selected' if act == 'callback' }}>Run code in my app (callback)</option>
+        <option value="card" {{ 'selected' if act == 'card' }}>Just show the card</option>
+      </select>
+      <input name="action_value" id="action-value" placeholder="https://stacks.ltd" value="{{ form.get('action_value', '') }}">
+      <small class="muted" id="action-hint">Allowed: {{ a.allowed_url_prefixes.splitlines()|join(', ') or 'add prefixes in Settings' }}</small>
+      <label>Card text <span class="count" data-for="card_body">0/280</span>
+        <textarea name="card_body" maxlength="280" rows="2" placeholder="Shown in the card on hover. Leave empty to repeat the subtitle.">{{ form.get('card_body', '') }}</textarea></label>
+    </section>
+
+    <details {{ 'open' if form.get('starts_at') or form.get('ends_at') }}>
+      <summary>Rotation and schedule</summary>
+      <div class="two">
+        <label>Starts <input type="datetime-local" name="starts_at_local" data-ts="{{ form.get('starts_at') or '' }}"></label>
+        <label>Ends <input type="datetime-local" name="ends_at_local" data-ts="{{ form.get('ends_at') or '' }}"></label>
+      </div>
+      <div class="two">
+        <label>Weight <small class="muted">higher shows more often</small><input name="weight" type="number" min="1" max="100" value="{{ form.get('weight', 1) }}"></label>
+        <label>Seconds on screen<input name="duration_secs" type="number" min="5" max="300" value="{{ form.get('duration_secs', 20) }}"></label>
+      </div>
+    </details>
+
+    <div class="editor-actions">
+      {% if item %}
+        <button class="btn">Save changes</button>
+      {% else %}
+        <button class="btn">Publish</button>
+        <button class="btn ghost" name="paused" value="1">Save as paused</button>
+      {% endif %}
+      <a href="{{ url_for('app_detail', app_id=a.id) }}" class="cancel">Cancel</a>
+    </div>
+  </div>
+
+  <aside class="editor-preview">
+    <div class="pv-head">
+      <button type="button" class="pv-nav" data-dir="-1" aria-label="Previous preview">‹</button>
+      <span id="pv-name">macOS menu bar</span>
+      <button type="button" class="pv-nav" data-dir="1" aria-label="Next preview">›</button>
+    </div>
+
+    <div class="pv-stage" data-view="mac">
+      <div class="dev mac">
+        <div class="mac-bar">
+          <span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span><span>View</span>
+          <span class="grow"></span>
+          <span class="slot pv-pill"></span>
+          <span class="mac-icons"></span><span>9:41</span>
+        </div>
+        <div class="mac-desk"></div>
+      </div>
+    </div>
+
+    <div class="pv-stage" data-view="card" hidden>
+      <div class="dev mac">
+        <div class="mac-bar"><span class="grow"></span><span class="slot pv-pill"></span><span class="mac-icons"></span><span>9:41</span></div>
+        <div class="mac-desk">
+          <div class="hcard">
+            <div class="hc-top"><span id="hc-label">Sponsored</span><span>Hide · Why this?</span></div>
+            <div class="hc-title" id="hc-title">Stacks India</div>
+            <div class="hc-body" id="hc-body"></div>
+            <div class="hc-btns"><span class="hc-primary" id="hc-btn">Open site</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pv-stage" data-view="win" hidden>
+      <div class="dev win">
+        <div class="win-desk"></div>
+        <div class="win-bar">
+          <span class="slot pv-pill"></span>
+          <span class="grow"></span>
+          <span class="win-apps"><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="grow"></span>
+          <span class="win-clock">9:41 AM<br>10/26/2026</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pv-dots"><i class="on"></i><i></i><i></i></div>
+    <p class="muted pv-note">Real size. Every item uses the same 224 × 29 pt slot.</p>
+  </aside>
+</form>
+
+<template id="pill-tpl">
+  <img class="icon" alt="" hidden><b></b><span class="txt"><strong></strong><small></small></span><em></em>
+</template>
+
+<script>
+(() => {
+  const f = document.getElementById("editor");
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const val = (n) => (f.elements[n] && f.elements[n].value) || "";
+  $("#tz").value = new Date().getTimezoneOffset();
+
+  // Show stored Unix times in the browser's local time.
+  $$("input[data-ts]").forEach((el) => {
+    const ts = parseInt(el.dataset.ts, 10);
+    if (!ts) return;
+    const d = new Date(ts * 1000);
+    const pad = (n) => String(n).padStart(2, "0");
+    el.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+
+  const pills = $$(".pv-pill");
+  pills.forEach((p) => p.appendChild($("#pill-tpl").content.cloneNode(true)));
+  let iconSrc = $("#icon-img").hidden ? "" : $("#icon-img").src;
+
+  const BUTTON = { open_url: "Open site", deep_link: "Open in app", callback: "Open", card: "" };
+  const HINT = {
+    open_url: "Allowed: {{ a.allowed_url_prefixes.splitlines()|join(', ') or 'add prefixes in Settings' }}",
+    deep_link: "A link into your app, like yourapp://settings. Its scheme must be allowed in Settings.",
+    callback: "A name your code listens for, like open-pricing.",
+    card: "Clicking the pill opens the card. No link needed.",
+  };
+
+  function update() {
+    const title = val("title").trim() || "Your title";
+    const sub = val("subtitle").trim();
+    const kind = (f.querySelector("input[name=kind]:checked") || {}).value;
+    const label = val("label").trim() || (kind === "sponsored" ? "Sponsored" : "");
+    const bg = val("background"), fg = val("foreground");
+    pills.forEach((p) => {
+      p.style.background = bg;
+      p.style.color = fg;
+      $("strong", p).textContent = title;
+      $("small", p).textContent = sub;
+      $("small", p).hidden = !sub;
+      $("em", p).textContent = label;
+      $("em", p).hidden = !label;
+      $("em", p).style.background = fg + "24";
+      $("b", p).textContent = title[0].toUpperCase();
+      $("b", p).style.background = fg;
+      $("b", p).style.color = bg;
+      $("b", p).hidden = !!iconSrc;
+      $("img", p).hidden = !iconSrc;
+      if (iconSrc) $("img", p).src = iconSrc;
+    });
+    $("#hc-label").textContent = label || " ";
+    $("#hc-title").textContent = title;
+    const body = val("card_body").trim() || sub;
+    $("#hc-body").textContent = body;
+    $("#hc-body").hidden = !body;
+    const act = val("action_type");
+    $("#hc-btn").textContent = BUTTON[act];
+    $("#hc-btn").hidden = !BUTTON[act];
+    $("#action-value").hidden = act === "card";
+    $("#action-value").placeholder = act === "callback" ? "open-pricing" : act === "deep_link" ? "yourapp://page" : "https://stacks.ltd";
+    $("#action-hint").textContent = HINT[act];
+    $$(".count").forEach((c) => {
+      const el = f.elements[c.dataset.for];
+      c.textContent = `${el.value.length}/${el.maxLength}`;
+    });
+  }
+
+  $$(".swatch[data-bg]").forEach((b) => b.addEventListener("click", () => {
+    f.elements.background.value = b.dataset.bg;
+    f.elements.foreground.value = b.dataset.fg;
+    update();
+  }));
+
+  const fileIn = $("#icon");
+  $("#icon-drop").addEventListener("click", () => fileIn.click());
+  fileIn.addEventListener("change", () => {
+    const file = fileIn.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      iconSrc = r.result;
+      $("#icon-img").src = iconSrc; $("#icon-img").hidden = false; $("#icon-ph").hidden = true;
+      $("#icon-remove").checked = false; $("#icon-remove-wrap").hidden = false;
+      update();
+    };
+    r.readAsDataURL(file);
+  });
+  $("#icon-remove-wrap").addEventListener("click", (e) => {
+    e.preventDefault();
+    iconSrc = ""; fileIn.value = "";
+    $("#icon-remove").checked = true;
+    const keep = $("#icon-keep"); if (keep) keep.remove();
+    $("#icon-img").hidden = true; $("#icon-ph").hidden = false; $("#icon-remove-wrap").hidden = true;
+    update();
+  });
+
+  // Preview carousel: menu bar → hover card → Windows taskbar.
+  const views = [["mac", "macOS menu bar"], ["card", "Card on hover"], ["win", "Windows taskbar"]];
+  let at = 0;
+  function show(i) {
+    at = (i + views.length) % views.length;
+    $$(".pv-stage").forEach((s) => (s.hidden = s.dataset.view !== views[at][0]));
+    $("#pv-name").textContent = views[at][1];
+    $$(".pv-dots i").forEach((d, j) => d.classList.toggle("on", j === at));
+  }
+  $$(".pv-nav").forEach((b) => b.addEventListener("click", () => show(at + Number(b.dataset.dir))));
+  $$(".pv-dots i").forEach((d, j) => d.addEventListener("click", () => show(j)));
+  f.elements.card_body.addEventListener("focus", () => show(1));
+  f.elements.action_type.addEventListener("focus", () => show(1));
+
+  f.addEventListener("input", update);
+  f.addEventListener("change", update);
+  update();
+})();
+</script>
+{% endblock %}

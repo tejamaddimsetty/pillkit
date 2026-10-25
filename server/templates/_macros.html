@@ -1,0 +1,22 @@
+{% macro spark(values, w=88, h=26) -%}
+{%- set mx = values|max if values|max > 0 else 1 -%}
+{%- set n = values|length -%}
+<svg class="spark" width="{{ w }}" height="{{ h }}" viewBox="0 0 {{ w }} {{ h }}" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" points="{% for v in values %}{{ (loop.index0 * w / (n - 1))|round(1) }},{{ (h - 2 - v / mx * (h - 4))|round(1) }} {% endfor %}"/></svg>
+{%- endmacro %}
+
+{% macro chart(imp, clk, days, w=720, h=180) -%}
+{%- set mx = imp|max if imp|max > 0 else 1 -%}
+{%- set n = imp|length -%}
+<svg class="chart" viewBox="0 0 {{ w }} {{ h + 22 }}" preserveAspectRatio="none" role="img" aria-label="Shown and clicks per day, last 30 days">
+  {% for f in [0, 0.5, 1] %}<line x1="0" x2="{{ w }}" y1="{{ (h - f * (h - 10))|round(1) }}" y2="{{ (h - f * (h - 10))|round(1) }}" class="grid"/>
+  <text x="2" y="{{ (h - f * (h - 10) - 4)|round(1) }}" class="axis">{{ (mx * f)|round|int }}</text>{% endfor %}
+  <polyline class="l-imp" fill="none" points="{% for v in imp %}{{ (loop.index0 * w / (n - 1))|round(1) }},{{ (h - v / mx * (h - 10))|round(1) }} {% endfor %}"/>
+  <polyline class="l-clk" fill="none" points="{% for v in clk %}{{ (loop.index0 * w / (n - 1))|round(1) }},{{ (h - v / mx * (h - 10))|round(1) }} {% endfor %}"/>
+  <text x="0" y="{{ h + 18 }}" class="axis">{{ days[0][5:] }}</text>
+  <text x="{{ w }}" y="{{ h + 18 }}" class="axis" text-anchor="end">{{ days[-1][5:] }}</text>
+</svg>
+{%- endmacro %}
+
+{% macro pill(i) -%}
+<span class="pill" style="background:{{ i.background }};color:{{ i.foreground }}">{% if i.icon_png %}<img class="icon" src="data:image/png;base64,{{ i.icon_png }}" alt="">{% else %}<b style="background:{{ i.foreground }};color:{{ i.background }}">{{ i.title[:1] }}</b>{% endif %}<span><strong>{{ i.title }}</strong><small>{{ i.subtitle }}</small></span>{% if i.label %}<em>{{ i.label }}</em>{% endif %}</span>
+{%- endmacro %}

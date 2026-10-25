@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}barkit{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='logo.svg') }}" type="image/svg+xml">
+</head>
+<body>
+<header class="top"><div class="inner">
+  <div class="crumbs">
+    <a class="brand" href="{{ url_for('admin') if user and user.is_admin else (url_for('dashboard') if user else url_for('index')) }}" aria-label="barkit home">{% include "_logo.html" %}<span>barkit</span></a>
+    {% if user and my_apps and a is defined and a %}
+    <span class="sep">/</span>
+    <details class="switcher">
+      <summary>{{ a.name }}<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></summary>
+      <div class="menu">
+        {% for x in my_apps %}<a href="{{ url_for('app_detail', app_id=x.id) }}" class="{{ 'on' if x.id == a.id }}">{{ x.name }}</a>{% endfor %}
+        <hr><a href="{{ url_for('dashboard') }}#new-app">+ New app</a>
+      </div>
+    </details>
+    {% endif %}
+  </div>
+  <nav>
+    {% if user %}
+      {% if not user.is_admin %}<a class="quiet" href="{{ url_for('dashboard') }}">Apps</a>{% endif %}
+      <a class="quiet" href="{{ url_for('docs') }}">Docs</a>
+      <details class="account">
+        <summary aria-label="Account menu"><span class="avatar">{{ user.name[:1]|upper }}</span></summary>
+        <div class="menu right">
+          <div class="who"><b>{{ user.name }}</b><span>{{ user.email }}</span></div>
+          <hr>
+          {% if user.is_admin %}<a href="{{ url_for('admin') }}">Admin console</a>{% else %}<a href="{{ url_for('dashboard') }}">Your apps</a>{% endif %}
+          <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Sign out</button></form>
+        </div>
+      </details>
+    {% else %}
+      <a class="quiet" href="{{ url_for('docs') }}">Docs</a>
+      <a class="quiet" href="{{ url_for('login') }}">Sign in</a>
+      <a class="btn small" href="{{ url_for('apply') }}">Apply for a licence</a>
+    {% endif %}
+  </nav>
+</div></header>
+<main class="wrap">
+  {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% block body %}{% endblock %}
+</main>
+</body>
+</html>

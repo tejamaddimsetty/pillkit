@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Admin · barkit{% endblock %}
+{% block body %}
+<h1>Admin</h1>
+{% set pending = devs|selectattr('status', 'equalto', 'pending')|list %}
+<div class="section-head"><h2>Waiting for review</h2><span class="muted">{{ pending|length }}</span></div>
+{% for d in pending %}
+<div class="card review">
+  <div><b>{{ d.name }}</b> · {{ d.email }}{% if d.company %} · {{ d.company }}{% endif %}{% if d.country %} · {{ d.country }}{% endif %}
+  {% if d.website %}<br><a href="{{ d.website }}" rel="noopener noreferrer" target="_blank">{{ d.website }}</a>{% endif %}
+  <p class="muted">{{ d.use_case }}</p></div>
+  <form method="post" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="note" placeholder="Note (shown to the developer if rejected)">
+    <button class="btn" formaction="{{ url_for('admin_dev', dev_id=d.id, op='approve') }}">Approve</button>
+    <button class="btn ghost" formaction="{{ url_for('admin_dev', dev_id=d.id, op='reject') }}">Reject</button>
+  </form>
+</div>
+{% else %}<p class="muted">Nothing to review.</p>{% endfor %}
+
+<h2>Developers and licences</h2>
+<table class="list">
+  <tr><th>Developer</th><th>Status</th><th>Licence</th><th>Apps</th><th>Payment</th><th></th></tr>
+  {% for d in devs if d.status != 'pending' %}{% set l = lics.get(d.id) %}
+  <tr>
+    <td><b>{{ d.name }}</b><br><small class="muted">{{ d.email }}</small></td>
+    <td><span class="tag {{ 'ok' if d.status == 'approved' else 'err' }}">{{ d.status }}</span>{% if d.is_admin %} <span class="tag">admin</span>{% endif %}</td>
+    <td>{% if l %}<span class="tag {{ {'active':'ok','awaiting_payment':'warn'}.get(l.status, 'err') }}">{{ l.status.replace('_', ' ') }}</span><br><small class="muted">{{ l.id }}</small>{% else %}—{% endif %}</td>
+    <td>{{ counts.get(d.id, 0) }}{% if l %} / {{ l.max_apps }}{% endif %}</td>
+    <td>
+      {% if l and l.status == 'awaiting_payment' %}
+      <form method="post" action="{{ url_for('admin_license', lic_id=l.id, op='paid') }}" class="row tight">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input name="amount" placeholder="Amount" size="6"><input name="currency" value="USD" size="3"><input name="invoice_ref" placeholder="Invoice #" size="8">
+        <button class="btn small">Mark paid</button>
+      </form>
+      {% elif l and l.status == 'active' %}{{ l.amount }} {{ l.currency }}{% if l.invoice_ref %} · {{ l.invoice_ref }}{% endif %}{% endif %}
+    </td>
+    <td class="actions">
+      <form method="post" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if d.status == 'approved' and not d.is_admin %}<button class="link danger" formaction="{{ url_for('admin_dev', dev_id=d.id, op='suspend') }}">Suspend</button>{% endif %}
+        {% if d.status in ('suspended', 'rejected') %}<button class="link" formaction="{{ url_for('admin_dev', dev_id=d.id, op='reinstate') }}">Approve</button>{% endif %}
+        {% if l and l.status != 'revoked' %}<button class="link danger" formaction="{{ url_for('admin_license', lic_id=l.id, op='revoke') }}" onclick="return confirm('Revoke this licence? Widgets switch off.')">Revoke</button>{% endif %}
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Recent activity</h2>
+<table class="list small">
+  {% for r in recent %}<tr><td class="muted">{{ r.at }}</td><td><code>{{ r.actor }}</code></td><td>{{ r.action }}</td><td><code>{{ r.target }}</code></td></tr>{% else %}<tr><td class="muted">No activity yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

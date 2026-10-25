@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="hero">
+  <h1>Your app, in the menu bar and the taskbar.</h1>
+  <p class="lead muted">barkit is an SDK that puts a small widget next to the clock on macOS and Windows. Use it for sponsors you sign yourself, product news, or live status. You keep 100% of what your sponsors pay.</p>
+  <div class="row"><a class="btn" href="{{ url_for('apply') }}">Apply for a developer licence</a><a class="btn ghost" href="#how">How it works</a></div>
+  <div class="bars">
+    <div class="bar mac"><span>Finder&nbsp;&nbsp;File&nbsp;&nbsp;Edit</span><span class="grow"></span><span class="pill"><b>A</b><span><strong>Acme Cloud</strong><small>Deploy in 30s. Try free.</small></span><em>Ad</em></span><span>9:05</span></div>
+    <div class="bar win"><span class="pill"><b>A</b><span><strong>Acme Cloud</strong><small>Deploy in 30s. Try free.</small></span><em>Ad</em></span><span class="grow"></span><span>⊞&nbsp;&nbsp;⌕&nbsp;&nbsp;▢</span><span class="grow"></span><span>9:05 AM</span></div>
+  </div>
+</section>
+<section id="how" class="grid3">
+  <div class="card"><h3>1. Apply</h3><p class="muted">Tell us who you are and what you're building. Every developer is reviewed by hand, so end users can trust what shows up in their bar.</p></div>
+  <div class="card"><h3>2. Get a lifetime licence</h3><p class="muted">One payment, yours for life{% if price %} ({{ price }}){% endif %}. We invoice you directly. Build and test with a dev watermark while the invoice is open.</p></div>
+  <div class="card"><h3>3. Add three lines</h3><p class="muted">Install the SDK, call <code>start()</code> with your app ID and key, then manage what shows from this dashboard or your own backend.</p></div>
+</section>
+{% endblock %}

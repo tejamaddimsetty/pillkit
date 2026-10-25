@@ -1,0 +1,3 @@
+{"id":"itm_demo","title":"Acme Cloud","subtitle":"Deploy in 30s. Try free.","label":"Ad",
+ "theme":{"background":"#E8F04A","foreground":"#2A2C05"},
+ "action":{"type":"open_url","url":"https://acme.example/"}}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% from "_macros.html" import spark, chart, pill %}
+{% block title %}{{ a.name }} · barkit{% endblock %}
+{% block body %}
+<div class="page-head">
+  <h1>{{ a.name }}</h1>
+  {% if tab == 'items' %}<a class="btn" href="{{ url_for('new_item', app_id=a.id) }}">+ New item</a>{% endif %}
+</div>
+<nav class="tabs">
+  <a href="{{ url_for('app_detail', app_id=a.id) }}" class="{{ 'on' if tab == 'items' }}">Items</a>
+  <a href="{{ url_for('app_detail', app_id=a.id, tab='integrate') }}" class="{{ 'on' if tab == 'integrate' }}">Integrate</a>
+  <a href="{{ url_for('app_detail', app_id=a.id, tab='settings') }}" class="{{ 'on' if tab == 'settings' }}">Settings</a>
+</nav>
+
+{% if tab == 'items' %}
+<div class="card flush">
+  <div class="metrics">
+    <div class="metric on"><span>Shown</span><b>{{ '{:,}'.format(total.imp_total) }}</b>{{ spark(total.imp) }}</div>
+    <div class="metric"><span>Clicks</span><b>{{ '{:,}'.format(total.clk_total) }}</b>{{ spark(total.clk) }}</div>
+    <div class="metric"><span>Click rate</span><b>{{ '%.1f'|format(total.ctr) }}%</b></div>
+    <div class="metric"><span>Live items</span><b>{{ live }}</b></div>
+  </div>
+  <div class="chart-wrap">{{ chart(total.imp, total.clk, days) }}
+    <div class="legend"><span class="k-imp"></span>Shown <span class="k-clk"></span>Clicks <span class="muted">· last 30 days</span></div>
+  </div>
+</div>
+
+{% if items %}
+<div class="table-wrap"><table class="list items">
+  <tr><th style="width:54px">On</th><th>Item</th><th>Status</th><th class="num">Shown</th><th class="num">Clicks</th><th class="num">Click rate</th><th>30 days</th></tr>
+  {% for i in items %}{% set st = per_item.get(i.id, empty) %}
+  <tr class="{{ '' if i.active else 'off' }}">
+    <td>
+      <form method="post" action="{{ url_for('item_op', app_id=a.id, item_id=i.id, op='toggle') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="switch {{ 'on' if i.active }}" aria-label="{{ 'Pause' if i.active else 'Resume' }} {{ i.title }}" title="{{ 'Pause' if i.active else 'Resume' }}"><i></i></button></form>
+    </td>
+    <td>
+      <a href="{{ url_for('edit_item', app_id=a.id, item_id=i.id) }}" class="plain">{{ pill(i) }}</a>
+      <div class="row-links">
+        <a href="{{ url_for('edit_item', app_id=a.id, item_id=i.id) }}">Edit</a> ·
+        <a href="{{ url_for('new_item', app_id=a.id, **{'from': i.id}) }}">Duplicate</a> ·
+        <form method="post" action="{{ url_for('item_op', app_id=a.id, item_id=i.id, op='delete') }}" class="inline" onsubmit="return confirm('Delete {{ i.title|e }}?')"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link danger">Delete</button></form>
+      </div>
+    </td>
+    <td><span class="dot {{ i.status }}"></span>{{ i.status|capitalize }}</td>
+    <td class="num">{{ '{:,}'.format(st.imp_total) }}</td>
+    <td class="num">{{ '{:,}'.format(st.clk_total) }}</td>
+    <td class="num">{{ '%.1f'|format(st.ctr) }}%</td>
+    <td class="spark-cell">{{ spark(st.imp) }}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}
+<div class="card empty"><h3>Create your first item</h3><p class="muted">An item is what shows next to the clock: a sponsor, a launch, a status. It goes live in menu bars and taskbars within minutes.</p><a class="btn" href="{{ url_for('new_item', app_id=a.id) }}">+ New item</a></div>
+{% endif %}
+
+{% elif tab == 'integrate' %}
+<div class="card code">
+<pre><code>// npm install @barkit/sdk
+import { Barkit } from "@barkit/sdk";
+
+const bar = await Barkit.start({
+  appId: "{{ a.id }}",
+  key: "{{ a.publishable_key }}",
+  bundleId: "{{ a.bundle_id or 'com.example.app' }}",
+  server: "{{ base }}",
+});
+
+// Optional: show your own status message next to the clock.
+await bar.show({ id: "build", title: "Build passed", subtitle: "main · 2m ago", action: { type: "callback", name: "open-build" } });
+bar.on("callback", (e) => console.log("clicked", e.name));</code></pre>
+</div>
+
+{% else %}
+{% if secret %}
+<div class="flash ok"><b>Secret key, shown once.</b> Store it on your server; it manages this app's items through the API. <code class="copy">{{ secret }}</code></div>
+{% endif %}
+<div class="grid2">
+  <div class="card">
+    <h3>Keys</h3>
+    <dl class="kv">
+      <dt>App ID</dt><dd><code>{{ a.id }}</code></dd>
+      <dt>Publishable key</dt><dd><code>{{ a.publishable_key }}</code><br><small class="muted">Safe to ship inside your app.</small></dd>
+      <dt>Secret key</dt><dd><form method="post" action="{{ url_for('rotate_secret', app_id=a.id) }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Generate a new secret key</button></form><br><small class="muted">Rotating breaks the old one immediately.</small></dd>
+    </dl>
+  </div>
+  <form class="card form" method="post" action="{{ url_for('app_settings', app_id=a.id) }}">
+    <h3>Settings</h3>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Name<input name="name" value="{{ a.name }}"></label>
+    <label>Bundle ID <small class="muted">licences only work inside this app</small><input name="bundle_id" value="{{ a.bundle_id }}" placeholder="com.acme.clipboard"></label>
+    <label>Allowed URL prefixes <small class="muted">one per line; items can only open these</small><textarea name="allowed_url_prefixes" rows="3" placeholder="https://acme.com/&#10;acmeclip://">{{ a.allowed_url_prefixes }}</textarea></label>
+    <button class="btn">Save settings</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

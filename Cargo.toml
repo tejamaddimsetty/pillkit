@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/barkit-core", "crates/barkit-host"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/tejamaddimsetty/barkit"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+ed25519-dalek = "2.1"
+tiny-skia = { version = "0.11", default-features = false, features = ["std", "simd", "png-format"] }
+fontdue = "0.9"

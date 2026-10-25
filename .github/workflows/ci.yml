@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host:
+    name: host (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p barkit-core
+      - run: cargo build -p barkit-host --release
+        env:
+          # Set this repository secret to the production server's public key
+          # (GET /v1/public-key). Release hosts trust only this key.
+          BARKIT_PUBLIC_KEY: ${{ secrets.BARKIT_PUBLIC_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: barkit-host-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            target/release/barkit-host
+            target/release/barkit-host.exe
+          if-no-files-found: ignore
+      # Dev build: accepts a local test server's key via BARKIT_PUBLIC_KEY.
+      # This is the one to use for hands-on testing (docs/WINDOWS_TESTING.md).
+      - run: cargo build -p barkit-host
+      - uses: actions/upload-artifact@v4
+        with:
+          name: barkit-host-dev-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            target/debug/barkit-host
+            target/debug/barkit-host.exe
+          if-no-files-found: ignore
+
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q tests
