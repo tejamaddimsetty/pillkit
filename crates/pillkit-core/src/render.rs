@@ -81,7 +81,7 @@ pub fn slot_width_override() -> Option<f32> {
         .ok()?
         .parse::<f32>()
         .ok()
-        .map(|w| w.clamp(120.0, 480.0))
+        .map(|w| w.clamp(20.0, 480.0))
 }
 
 pub struct Rendered {

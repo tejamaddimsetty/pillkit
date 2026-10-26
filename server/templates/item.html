@@ -143,16 +143,26 @@
     </div>
 
     <div class="pv-stage" data-view="win" hidden>
-      <div class="dev win">
+      <div class="dev win11">
         <div class="win-desk"></div>
-        <div class="win-bar">
-          <span class="slot pv-pill"></span>
+        <div class="win-fit"><div class="win-bar" data-mode="busy">
+          <span class="w-weather"><i></i><span><b>26°C</b><small>Partly cloudy</small></span></span>
+          <span class="slot pv-pill win-pill"></span>
           <span class="grow"></span>
-          <span class="win-apps"><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="w-start"><i></i><i></i><i></i><i></i></span>
+          <span class="w-search">Search</span>
+          <span class="w-apps"></span>
           <span class="grow"></span>
-          <span class="win-clock">9:41 AM<br>10/26/2026</span>
-        </div>
+          <span class="w-tray">^ <i></i><i></i><i></i></span>
+          <span class="w-clock">18:27<br>26-10-2026</span>
+        </div></div>
       </div>
+      <div class="win-modes" role="group" aria-label="Windows taskbar examples">
+        <button type="button" data-mode="roomy">Roomy</button>
+        <button type="button" data-mode="busy" class="on">Busy</button>
+        <button type="button" data-mode="crowded">Crowded</button>
+      </div>
+      <p class="muted win-note" id="win-note"></p>
     </div>
 
     <div class="pv-dots"><i class="on"></i><i></i><i></i></div>
@@ -262,12 +272,47 @@
   });
 
   // Preview carousel: menu bar → hover card → Windows taskbar.
-  const views = [["mac", "macOS menu bar"], ["card", "Card on hover"], ["win", "Windows taskbar"]];
+  // Windows 11: the host measures the free space on the taskbar and uses the
+  // largest size that fits, so it never covers Start, Search or app icons.
+  const WIN = {
+    roomy: { apps: 4, weather: false, size: "", note: "Plenty of room: the full pill, with subtitle and label." },
+    busy: { apps: 9, weather: true, size: "compact", note: "Busy taskbar (weather + many apps): a compact pill with the icon and title. The label shows on hover." },
+    crowded: { apps: 13, weather: true, size: "iconly", note: "Very crowded: just the icon. If even that won't fit, Pill Kit falls back to a tray icon." },
+  };
+  const COLORS = ["#ffb900", "#0078d4", "#4285f4", "#db4437", "#0f9d58", "#25d366", "#2b2b2b", "#8a2be2", "#ff5722", "#009688"];
+  function winMode(mode) {
+    const m = WIN[mode];
+    const bar = $(".win-bar");
+    bar.dataset.mode = mode;
+    $(".w-weather").hidden = !m.weather;
+    const pill = $(".win-pill");
+    pill.classList.remove("compact", "iconly");
+    if (m.size) pill.classList.add(m.size);
+    $(".w-apps").innerHTML = Array.from({ length: m.apps }, (_, i) => `<i style="background:${COLORS[i % COLORS.length]}"></i>`).join("");
+    $("#win-note").textContent = m.note + " Pill Kit picks the size automatically and re-checks as apps open and close.";
+    $$(".win-modes button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+  }
+  $$(".win-modes button").forEach((b) => b.addEventListener("click", () => winMode(b.dataset.mode)));
+  winMode("busy");
+  // The taskbar is drawn at real size and scaled down to fit the preview.
+  function fitWin() {
+    const box = $(".win-fit"), bar = $(".win-bar");
+    // Show the left part of the bar (where the pill lives) at a readable size;
+    // the rest fades out.
+    const k = Math.min(1, box.clientWidth / 560);
+    bar.style.transform = `scale(${k})`;
+    box.style.height = `${bar.offsetHeight * k}px`;
+  }
+  window.addEventListener("resize", fitWin);
+
+  const views = [["mac", "macOS menu bar"], ["card", "Card on hover"], ["win", "Windows 11 taskbar"]];
   let at = 0;
   function show(i) {
     at = (i + views.length) % views.length;
     $$(".pv-stage").forEach((s) => (s.hidden = s.dataset.view !== views[at][0]));
     $("#pv-name").textContent = views[at][1];
+    $(".pv-note").hidden = views[at][0] === "win";
+    if (views[at][0] === "win") requestAnimationFrame(fitWin);
     $$(".pv-dots i").forEach((d, j) => d.classList.toggle("on", j === at));
   }
   $$(".pv-nav").forEach((b) => b.addEventListener("click", () => show(at + Number(b.dataset.dir))));

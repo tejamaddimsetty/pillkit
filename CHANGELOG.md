@@ -4,6 +4,14 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [Unreleased]
+
+### Added
+- Item editor: a Windows 11 taskbar preview with Roomy / Busy / Crowded
+  examples, showing the item as the full, compact and icon-only pill.
+- Docs: how the Windows pill sizes itself, and tips for short titles.
+- `PILLKIT_SLOT_WIDTH` accepts widths down to icon-only for design previews.
+
 ## [0.2.2] - 2026-10-27
 
 ### Fixed

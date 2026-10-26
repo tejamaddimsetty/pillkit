@@ -332,3 +332,34 @@ table.ref td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertic
 dl.faq dt { font-weight: 600; margin-top: 14px; }
 dl.faq dd { margin: 4px 0 0; color: var(--muted); }
 @media (max-width: 800px) { .docs { grid-template-columns: minmax(0, 1fr); } .docs-nav { display: none; } }
+
+/* ---- editor: Windows 11 taskbar preview ---- */
+.dev.win11 .win-desk { height: 150px; background: linear-gradient(160deg, #a7c4e4, #6f98c9 60%, #4d7bb3); }
+.win-fit { overflow: hidden; background: #f3f3f3; }
+.win-bar { display: flex; align-items: center; gap: 10px; width: 760px; height: 48px; padding: 0 10px; background: #f3f3f3; color: #1b1b1b; border-top: 1px solid #dcdcdc; transform-origin: 0 0; box-sizing: border-box; font-family: "Segoe UI", Inter, system-ui, sans-serif; }
+.win-bar .grow { flex: 1; }
+.w-weather { display: flex; align-items: center; gap: 6px; flex: none; }
+.w-weather i { width: 22px; height: 16px; border-radius: 10px; background: linear-gradient(135deg, #ffc43d 40%, #aac8eb 40%); }
+.w-weather b { display: block; font-size: 12px; font-weight: 600; }
+.w-weather small { display: block; font-size: 10.5px; color: #555; }
+.w-start { display: grid; grid-template-columns: 9px 9px; gap: 2px; flex: none; }
+.w-start i { width: 9px; height: 9px; background: #0078d4; }
+.w-search { flex: none; width: 120px; height: 30px; border-radius: 16px; background: #fff; border: 1px solid #d6d6d6; font-size: 12px; color: #666; display: flex; align-items: center; padding-left: 12px; box-sizing: border-box; }
+.w-apps { display: flex; gap: 8px; flex: none; }
+.w-apps i { width: 24px; height: 24px; border-radius: 6px; }
+.w-tray { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #444; flex: none; }
+.w-tray i { width: 12px; height: 12px; border-radius: 50%; background: #8a8a8a; }
+.w-clock { font-size: 11px; text-align: right; line-height: 1.3; flex: none; }
+.win-pill { height: 34px; }
+.win-pill.compact { width: 120px; }
+.win-pill.compact small, .win-pill.compact em { display: none !important; }
+.win-pill.iconly { width: 34px; padding: 0; justify-content: center; }
+.win-pill.iconly .txt, .win-pill.iconly em { display: none !important; }
+.win-modes { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.win-modes button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 5px 12px; font: 500 13px Inter, system-ui, sans-serif; cursor: pointer; }
+.win-modes button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.win-note { text-align: center; font-size: 12px; margin: 8px 6px 0; }
+.win-fit { position: relative; }
+.win-fit::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 60px; background: linear-gradient(90deg, rgba(243,243,243,0), #f3f3f3); pointer-events: none; }
+.win-bar { justify-content: flex-start; }
+.win-bar .grow:first-of-type { flex: 0 0 18px; }
