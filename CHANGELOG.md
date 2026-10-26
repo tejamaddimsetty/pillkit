@@ -4,6 +4,17 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.1.2] - 2026-10-27
+
+### Fixed
+- Windows: the pill never appeared. The host now ships a Windows 8+ manifest
+  (required for a see-through window inside the taskbar), and when embedding
+  isn't possible it falls back to a real top-most overlay instead of an
+  invisible window, then to the tray.
+- Windows: the log now records where the pill was placed and why a mode failed.
+- Installers fetch a newer host automatically when a new release exists.
+- Server dependencies install on any Python 3.10+ without a compiler.
+
 ## [0.1.1] - 2026-10-26
 
 ### Added

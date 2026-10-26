@@ -42,7 +42,10 @@ echo "  Demo app: $APP_ID"
 
 step 3 "Getting barkit-host"
 HOST="$DATA/bin/barkit-host-dev"
-if [[ "${1:-}" == "--update" || ! -x "$HOST" ]]; then
+HAVE="$([[ -x "$HOST" ]] && "$HOST" --version 2>/dev/null | sed 's/barkit-host //' || true)"
+LATEST="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1 || true)"
+[[ -n "$HAVE" ]] && echo "  Installed host: $HAVE   Latest release: ${LATEST:-unknown}"
+if [[ "${1:-}" == "--update" || ! -x "$HOST" || ( -n "$LATEST" && "$HAVE" != "$LATEST" ) ]]; then
   if command -v cargo >/dev/null; then
     echo "  Building from source with cargo..."
     (cd "$ROOT" && cargo build -q -p barkit-host)

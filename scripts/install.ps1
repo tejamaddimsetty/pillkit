@@ -104,7 +104,13 @@ Write-Host "  Demo app: $AppId"
 Step 3 "Getting barkit-host"
 if (-not $HostExe) {
   $HostExe = Join-Path $Data "bin\barkit-host-dev.exe"
-  if ($Update -or -not (Test-Path $HostExe)) {
+  # Re-download whenever GitHub has a newer release than the host we have.
+  $have = ""
+  if (Test-Path $HostExe) { try { $have = ((& $HostExe --version) -replace "barkit-host ", "").Trim() } catch {} }
+  $latest = ""
+  try { $latest = (Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing).tag_name.TrimStart("v") } catch {}
+  if ($have) { Write-Host "  Installed host: $have   Latest release: $(if ($latest) { $latest } else { 'unknown' })" }
+  if ($Update -or -not (Test-Path $HostExe) -or ($latest -and $have -ne $latest)) {
     $url = "https://github.com/$Repo/releases/latest/download/barkit-host-dev-windows-x64.exe"
     Write-Host "  Downloading $url"
     try {

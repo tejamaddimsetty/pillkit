@@ -68,6 +68,7 @@ struct State {
     tray_added: bool,
     ticks: u32,
     win10_shrunk: Option<(HWND, i32)>,
+    last_placed: Option<(Mode, RECT)>,
 }
 
 thread_local! {
@@ -144,6 +145,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             tray_added: false,
             ticks: 0,
             win10_shrunk: None,
+            last_placed: None,
         };
         STATE.with(|s| *s.borrow_mut() = Some(state));
         SetTimer(hwnd, TIMER_POLL, 250, None);
@@ -503,6 +505,16 @@ fn layout(s: &mut State) {
     };
     remove_tray(s);
 
+    if s.last_placed
+        .map(|(m, r)| (m, r.left, r.top, r.right, r.bottom))
+        != Some((s.mode, target.left, target.top, target.right, target.bottom))
+    {
+        log(format!(
+            "placing pill: mode {:?}, at ({}, {}) size {}x{}; taskbar ({}, {})-({}, {}); scale {scale}; build {}",
+            s.mode, target.left, target.top, w, h, tb.left, tb.top, tb.right, tb.bottom, windows_build()
+        ));
+        s.last_placed = Some((s.mode, target));
+    }
     let fullscreen = fullscreen_app_running();
     unsafe {
         match s.mode {
@@ -519,6 +531,7 @@ fn layout(s: &mut State) {
                     {
                         log("could not embed in the taskbar; switching to overlay mode");
                         SetWindowLongPtrW(s.hwnd, GWL_STYLE, style);
+                        unembed(s.hwnd);
                         s.mode = Mode::Overlay;
                         return layout(s);
                     }
@@ -531,7 +544,7 @@ fn layout(s: &mut State) {
                 };
                 if !blit(s.hwnd, r, pos, true) {
                     log("layered child window not supported; switching to overlay mode");
-                    let _ = SetParent(s.hwnd, None);
+                    unembed(s.hwnd);
                     s.mode = Mode::Overlay;
                     return layout(s);
                 }
@@ -543,7 +556,7 @@ fn layout(s: &mut State) {
                     let _ = ShowWindow(s.hwnd, SW_HIDE);
                     return;
                 }
-                blit(
+                if !blit(
                     s.hwnd,
                     r,
                     POINT {
@@ -551,7 +564,12 @@ fn layout(s: &mut State) {
                         y: target.top,
                     },
                     false,
-                );
+                ) {
+                    log("overlay window could not be drawn; switching to the tray");
+                    let _ = ShowWindow(s.hwnd, SW_HIDE);
+                    s.mode = Mode::Tray;
+                    return show_tray(s, &display);
+                }
                 // The taskbar raises itself when clicked; push back on top.
                 let _ = SetWindowPos(
                     s.hwnd,
@@ -567,6 +585,27 @@ fn layout(s: &mut State) {
             Mode::Tray => unreachable!(),
         }
     }
+}
+
+/// Turns our window back into a normal top-level popup after embedding failed.
+/// Without this it stays a WS_CHILD with no parent, which Windows never shows.
+unsafe fn unembed(hwnd: HWND) {
+    let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+    SetWindowLongPtrW(
+        hwnd,
+        GWL_STYLE,
+        (style & !(WS_CHILD.0 as isize)) | WS_POPUP.0 as isize,
+    );
+    let _ = SetParent(hwnd, None);
+    let _ = SetWindowPos(
+        hwnd,
+        HWND_TOPMOST,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+    );
 }
 
 /// Pushes the premultiplied bitmap into the layered window at `pos`.
@@ -620,6 +659,9 @@ fn blit(hwnd: HWND, r: &Rendered, pos: POINT, child: bool) -> bool {
                     Some(&blend),
                     ULW_ALPHA,
                 );
+                if let Err(e) = &res {
+                    log(format!("UpdateLayeredWindow failed (child: {child}): {e}"));
+                }
                 if child && res.is_ok() {
                     let _ = SetWindowPos(
                         hwnd,
