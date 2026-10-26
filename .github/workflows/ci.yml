@@ -39,6 +39,31 @@ jobs:
             target/debug/barkit-host.exe
           if-no-files-found: ignore
 
+  # Runs the real host on Windows and talks to it like an app does.
+  windows-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: cargo build -p barkit-host
+      - run: python -m pip install -r server/requirements.txt
+      - name: Start server, start host, register an app
+        shell: pwsh
+        run: |
+          Set-Location server
+          $seed = python dev_seed.py
+          $appId = ($seed | Select-String "APP_ID=(.*)").Matches[0].Groups[1].Value.Trim()
+          $key = ($seed | Select-String "KEY=(pk_.*)").Matches[0].Groups[1].Value.Trim()
+          Start-Process python -ArgumentList "app.py" -WindowStyle Hidden
+          for ($i = 0; $i -lt 60; $i++) { try { Invoke-RestMethod http://127.0.0.1:5050/healthz | Out-Null; break } catch { Start-Sleep -Milliseconds 500 } }
+          $env:BARKIT_PUBLIC_KEY = (Invoke-RestMethod http://127.0.0.1:5050/v1/public-key).key
+          Set-Location ..
+          Start-Process target\debug\barkit-host.exe -ArgumentList "run" -WindowStyle Hidden
+          python scripts\smoke_test.py $appId $key http://127.0.0.1:5050
+
   server:
     runs-on: ubuntu-latest
     defaults:

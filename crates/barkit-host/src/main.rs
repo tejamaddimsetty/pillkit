@@ -65,6 +65,8 @@ fn render(input: &str, output: &str) -> std::io::Result<()> {
 }
 
 fn run() {
+    // The host usually runs hidden, so make sure a crash leaves a trace.
+    std::panic::set_hook(Box::new(|info| paths::log(format!("CRASH: {info}"))));
     let (tx, rx) = mpsc::channel();
     let (ui_tx, ui_rx) = mpsc::channel();
     if let Err(e) = ipc::listen(tx.clone()) {

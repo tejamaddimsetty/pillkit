@@ -4,6 +4,18 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.1.4] - 2026-10-27
+
+### Fixed
+- Windows: apps couldn't register ("barkit-host closed the connection"). The
+  named pipe used synchronous I/O, where Windows serialises a pending read
+  and a reply on the same handle. It now uses overlapped I/O.
+- The host logs crashes and dropped connections to host.log.
+
+### Added
+- CI runs the real host on Windows and registers an app against a local
+  server (scripts/smoke_test.py).
+
 ## [0.1.3] - 2026-10-27
 
 ### Fixed
