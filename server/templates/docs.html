@@ -38,7 +38,6 @@
     <ol class="steps">
       <li><b>Apply for a licence.</b> <a href="{{ url_for('apply') }}">Apply here</a>. We review every developer by hand.</li>
       <li><b>Register your app</b> on your dashboard. You get an <code>appId</code> and a publishable key (<code>pk_…</code>).</li>
-      <li><b>Allow your links.</b> In the app's Settings, add every site or app scheme your items may open, such as <code>https://acme.com/</code> or <code>acmeclip://</code>.</li>
       <li><b>Create an item.</b> Title, subtitle, icon, colours, and what happens on click. The editor shows a live preview.</li>
       <li><b>Add the SDK</b> and call <code>start()</code>. Your item appears next to the clock within a few minutes.</li>
     </ol>
@@ -106,7 +105,7 @@ bar.on("callback", (e) => openBuildWindow(e.item_id));</code></pre>
       <tr><td><code>callback</code></td><td><code>name</code></td><td>Tells your running app, through <code>bar.on("callback")</code>.</td></tr>
       <tr><td><code>card</code></td><td></td><td>Opens the card.</td></tr>
     </table>
-    <p>Links only open if they start with one of the app's <b>allowed URL prefixes</b>. A bare domain such as <code>https://acme.com</code> counts as <code>https://acme.com/</code>. <code>file:</code>, <code>javascript:</code> and similar are always blocked.</p>
+    <p>Type links the way you normally would: <code>stacks.ltd</code>, <code>http://stacks.ltd</code> and <code>https://stacks.ltd</code> all become <code>https://stacks.ltd/</code>. The first time you use a site (or an app link scheme like <code>acmeclip://</code>), it's added to the app's allowed links automatically; you can review or remove them in Settings. Each app's widgets can only open its allowed links, and <code>file:</code>, <code>javascript:</code> and similar are always blocked.</p>
     <p>Hovering for half a second, or right-clicking, opens the card with the item's buttons plus <b>Hide</b> and <b>Why this?</b>.</p>
 
     <h2 id="api">Server API</h2>
@@ -173,8 +172,8 @@ pillkit-host --version</code></pre>
     <dl class="faq">
       <dt>My item doesn't appear.</dt>
       <dd>Check it's switched on and not scheduled in the future. Hosts check for new items every few minutes. <code>bar.status()</code> shows the licence state and last error.</dd>
-      <dt>"This app can only open URLs you've allowed".</dt>
-      <dd>Add the link's site to the app's allowed URL prefixes, or use the one-click "Allow and save" button in the editor.</dd>
+      <dt>Where do I manage which links an app can open?</dt>
+      <dd>In the app's Settings, under Allowed URL prefixes. Sites are added there automatically when you use them in an item.</dd>
       <dt>It shows "Pill Kit dev".</dt>
       <dd>Your licence invoice is still open. The label disappears once it's marked paid.</dd>
       <dt>The widget vanished on macOS.</dt>

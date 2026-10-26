@@ -65,8 +65,16 @@ def url_allowed(url, prefixes):
 
 
 def normalize_url(url):
-    """A bare https://host means its home page: https://host/."""
+    """Accept links the way people type them: "stacks.ltd" and
+    "http://stacks.ltd" become "https://stacks.ltd/" (the host only opens
+    secure links). Custom app links ("myapp://page") are left as they are."""
     url = (url or "").strip()
+    if not url:
+        return url
+    if "://" not in url and re.match(r"^[\w-]+(\.[\w-]+)+([/?#].*)?$", url):
+        url = "https://" + url
+    if re.match(r"^http://", url, re.I):
+        url = "https://" + url[7:]
     if re.match(r"^https://[^/?#\s]+$", url, re.I):
         url += "/"
     return url
@@ -525,6 +533,24 @@ def create_app(config=None):
         except ValueError:
             return "bad"
 
+    def auto_allow(a, data):
+        """Adds the item's link to the app's allowed prefixes, so typing a link
+        just works. Returns the prefix added, or None."""
+        if data.get("action_type") not in ("open_url", "deep_link"):
+            return None
+        data["action_value"] = normalize_url(data.get("action_value"))
+        prefix = suggest_prefix(data["action_value"])
+        if not prefix:
+            return None
+        prefixes = a["allowed_url_prefixes"].splitlines()
+        if url_allowed(data["action_value"], prefixes):
+            return None
+        prefixes.append(prefix)
+        write(update(db.apps).where(db.apps.c.id == a["id"]).values(allowed_url_prefixes="\n".join(prefixes)))
+        a["allowed_url_prefixes"] = "\n".join(prefixes)
+        audit("app.allow_prefix", a["id"], prefix=prefix)
+        return prefix
+
     def editor_form(a, existing=None):
         """Normalises the submitted editor form. Returns (data, suggest, error)."""
         f = request.form.to_dict()
@@ -546,16 +572,10 @@ def create_app(config=None):
             return f, None, "Dates must look like 2026-11-01 09:00"
         if f.get("starts_at") and f.get("ends_at") and int(f["ends_at"]) <= int(f["starts_at"]):
             return f, None, "The end date must be after the start date"
-        if f.get("action_value"):
-            f["action_value"] = normalize_url(f["action_value"])
-        suggest = suggest_prefix(f.get("action_value")) if f.get("action_type") in ("open_url", "deep_link") else None
-        if f.get("allow_domain") and suggest:
-            # One-click fix from the error: allow the link's domain, then save.
-            prefixes = a["allowed_url_prefixes"].splitlines()
-            if suggest not in prefixes:
-                prefixes.append(suggest)
-                write(update(db.apps).where(db.apps.c.id == a["id"]).values(allowed_url_prefixes="\n".join(prefixes)))
-                audit("app.allow_prefix", a["id"], prefix=suggest)
+        added = auto_allow(a, f)
+        if added:
+            flash(f"Added {added} to this app's allowed links.", "ok")
+        suggest = None
         return f, suggest, None
 
     def render_editor(a, form, item=None, suggest=None, status=200):
@@ -798,10 +818,14 @@ def create_app(config=None):
         data.setdefault("foreground", theme.get("foreground", "#2A2C05"))
         if isinstance(data.get("card"), dict):
             data.setdefault("card_body", data["card"].get("body", ""))
+        added = auto_allow(a, data)
         row, err = insert_item(a, data)
         if err:
             return api_error(400, err)
-        return jsonify({"item": item_to_wire(row)}), 201
+        out = {"item": item_to_wire(row)}
+        if added:
+            out["allowed_prefix_added"] = added
+        return jsonify(out), 201
 
     @app.delete("/v1/items/<item_id>")
     def api_delete_item(item_id):

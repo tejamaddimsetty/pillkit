@@ -6,6 +6,13 @@ semantic versioning.
 
 ## [Unreleased]
 
+### Changed
+- Links in items are accepted as typed: "stacks.ltd" and "http://..." become
+  "https://...", and the link's site (or app scheme) is added to the app's
+  allowed links automatically, with a note saying so. Only dangerous links
+  (javascript:, file:, ...) are refused. The same applies to the items API,
+  which reports `allowed_prefix_added`.
+
 ### Added
 - Item editor: a Windows 11 taskbar preview with Roomy / Busy / Crowded
   examples, showing the item as the full, compact and icon-only pill.

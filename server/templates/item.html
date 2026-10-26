@@ -81,7 +81,7 @@
         <option value="card" {{ 'selected' if act == 'card' }}>Just show the card</option>
       </select>
       <input name="action_value" id="action-value" placeholder="https://stacks.ltd" value="{{ form.get('action_value', '') }}">
-      <small class="muted" id="action-hint">Allowed: {{ a.allowed_url_prefixes.splitlines()|join(', ') or 'add prefixes in Settings' }}</small>
+      <small class="muted" id="action-hint">Any web link works, like stacks.ltd. We'll allow that site for this app.</small>
       <label>Card text <span class="count" data-for="card_body">0/280</span>
         <textarea name="card_body" maxlength="280" rows="2" placeholder="Shown in the card on hover. Leave empty to repeat the subtitle.">{{ form.get('card_body', '') }}</textarea></label>
     </section>
@@ -197,8 +197,8 @@
 
   const BUTTON = { open_url: "Open site", deep_link: "Open in app", callback: "Open", card: "" };
   const HINT = {
-    open_url: "Allowed: {{ a.allowed_url_prefixes.splitlines()|join(', ') or 'add prefixes in Settings' }}",
-    deep_link: "A link into your app, like yourapp://settings. Its scheme must be allowed in Settings.",
+    open_url: "Any web link works, like stacks.ltd. We'll allow that site for this app.",
+    deep_link: "A link into your app, like yourapp://settings. We'll allow that scheme for this app.",
     callback: "A name your code listens for, like open-pricing.",
     card: "Clicking the pill opens the card. No link needed.",
   };

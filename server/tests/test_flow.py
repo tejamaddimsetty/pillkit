@@ -91,7 +91,8 @@ def test_full_journey(client):
     post(c, f"/apps/{app_id}/settings", name="Clip", bundle_id="com.acme.clip", allowed_url_prefixes="https://acme.com/\nacmeclip://")
     r = c.post(f"/apps/{app_id}/items", data={"csrf": csrf(c), "title": "Acme Cloud", "subtitle": "Try free",
                "action_type": "open_url", "action_value": "https://evil.io/"}, follow_redirects=True)
-    assert r.status_code == 400 and b"https://evil.io/" in r.data and b"Acme Cloud" in r.data  # names the fix, keeps the form
+    # Any link the developer types is accepted, and its site is allowed for the app.
+    assert r.status_code == 200 and b"Added https://evil.io/ to this app" in r.data
     post(c, f"/apps/{app_id}/items", title="Acme Cloud", subtitle="Deploy in 30s", action_type="open_url",
          action_value="https://acme.com/pricing", background="#E8F04A", foreground="#2A2C05", weight="2", duration_secs="15")
 
@@ -113,8 +114,8 @@ def test_full_journey(client):
 
     # 6. Signed feed carries the item and the allowlist.
     feed = open_envelope(c.get(f"/v1/feed?app_id={app_id}", headers=auth).get_json()["token"], pub)
-    assert feed["allowed_url_prefixes"] == ["https://acme.com/", "acmeclip://"]
-    [item] = feed["items"]
+    assert feed["allowed_url_prefixes"] == ["https://acme.com/", "acmeclip://", "https://evil.io/"]
+    [item] = [i for i in feed["items"] if i["action"].get("url") == "https://acme.com/pricing"]
     assert item["title"] == "Acme Cloud" and item["label"] == "Sponsored" and item["weight"] == 2
     assert item["action"] == {"type": "open_url", "url": "https://acme.com/pricing"}
 
@@ -130,7 +131,7 @@ def test_full_journey(client):
     sauth = {"Authorization": f"Bearer {secret}"}
     r = c.post("/v1/items", json={"kind": "status", "title": "v2.1 is out", "action": {"type": "deep_link", "url": "acmeclip://changelog"}}, headers=sauth)
     assert r.status_code == 201, r.get_json()
-    assert len(c.get("/v1/items", headers=sauth).get_json()["items"]) == 2
+    assert len(c.get("/v1/items", headers=sauth).get_json()["items"]) == 3
     assert c.get("/v1/items", headers=auth).status_code == 401  # publishable key can't manage items
 
     # 9. Revoking switches everything off.
@@ -157,9 +158,9 @@ def test_url_rules():
         server.parse_prefixes("http://acme.com/")
 
 
-def test_one_click_allow_domain(client):
+def test_typed_links_are_accepted_and_allowed(client):
     c = client
-    post(c, "/apply", name="Ada", email="ada@a.com", password="averylongpass", use_case="testing the allow domain shortcut")
+    post(c, "/apply", name="Ada", email="ada@a.com", password="averylongpass", use_case="testing automatic link allowing")
     ada = dev_id(c, "ada@a.com")
     post(c, "/logout")
     make_admin(c)
@@ -168,13 +169,27 @@ def test_one_click_allow_domain(client):
     c.post("/login", data={"csrf": csrf(c), "email": "ada@a.com", "password": "averylongpass"})
     app_id = post(c, "/apps", name="Clip").headers["Location"].rsplit("/", 1)[1]
     c.get(f"/apps/{app_id}")  # the landing page shows the one-time secret
-    form = dict(title="Ramp", subtitle="Time is money. Save both.", action_type="open_url", action_value="https://ramp.com/x")
-    r = c.post(f"/apps/{app_id}/items", data={"csrf": csrf(c), **form})
-    assert r.status_code == 400 and b"https://ramp.com/" in r.data and b"Allow and save" in r.data
-    r = c.post(f"/apps/{app_id}/items", data={"csrf": csrf(c), "allow_domain": "1", **form})
+    for typed in ("stacks.ltd", "http://ramp.com/pricing", "https://linear.app"):
+        r = post(c, f"/apps/{app_id}/items", title="Item", action_type="open_url", action_value=typed, kind="sponsored")
+        assert r.status_code == 302, typed
+    r = post(c, f"/apps/{app_id}/items", title="Deep", action_type="deep_link", action_value="acmeclip://changelog", kind="status")
     assert r.status_code == 302
-    assert "Ramp" in c.get(f"/apps/{app_id}").data.decode()
-    assert "https://ramp.com/" in c.get(f"/apps/{app_id}?tab=settings").data.decode()
+    settings = c.get(f"/apps/{app_id}?tab=settings").data.decode()
+    for prefix in ("https://stacks.ltd/", "https://ramp.com/", "https://linear.app/", "acmeclip://"):
+        assert prefix in settings, prefix
+    values = sorted(r["action_value"] for r in item_rows(c, app_id))
+    assert values == ["acmeclip://changelog", "https://linear.app/", "https://ramp.com/pricing", "https://stacks.ltd/"]
+    # Dangerous links are still refused.
+    r = post(c, f"/apps/{app_id}/items", title="Bad", action_type="open_url", action_value="javascript:alert(1)", kind="status")
+    assert r.status_code == 400
+
+
+
+def test_normalize_url():
+    assert server.normalize_url("stacks.ltd") == "https://stacks.ltd/"
+    assert server.normalize_url("http://stacks.ltd/x") == "https://stacks.ltd/x"
+    assert server.normalize_url("acmeclip://page") == "acmeclip://page"
+    assert server.normalize_url("javascript:alert(1)") == "javascript:alert(1)"
 
 
 def test_suggest_prefix():
