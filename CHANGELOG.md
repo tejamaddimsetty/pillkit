@@ -4,6 +4,15 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.2.1] - 2026-10-27
+
+### Fixed
+- Windows: the pill covered the Start button and Search box on taskbars
+  with many pinned apps. The host now reads where every taskbar item is
+  through UI Automation and puts the pill only in free space: beside the
+  weather widget, else left of the tray, else narrower (180 / 150 pt), else
+  the tray. It re-checks every 2 s and stays put while its spot is free.
+
 ## [0.2.0] - 2026-10-27
 
 ### Changed

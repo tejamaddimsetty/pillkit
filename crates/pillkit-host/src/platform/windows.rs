@@ -27,9 +27,7 @@ use windows::Win32::Graphics::Gdi::{
     AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::System::Registry::{
-    RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
-};
+use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
 use windows::Win32::UI::HiDpi::{
     GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
@@ -64,10 +62,16 @@ struct State {
     forced: Option<Mode>,
     display: Option<Display>,
     rendered: Option<Rc<Rendered>>,
+    rendered_width_pt: f32,
+    /// UI Automation, used to find where the taskbar's own items are.
+    uia: Option<windows::Win32::UI::Accessibility::IUIAutomation>,
+    /// Screen x-ranges taken by taskbar items, refreshed every 2 s.
+    occupied: Option<(std::time::Instant, Vec<(i32, i32)>)>,
     tray_added: bool,
     ticks: u32,
     win10_shrunk: Option<(HWND, i32)>,
     last_placed: Option<(Mode, RECT)>,
+    placement_note: &'static str,
 }
 
 thread_local! {
@@ -106,6 +110,10 @@ pub fn shell_open(url: &str) {
 pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        let _ = windows::Win32::System::Com::CoInitializeEx(
+            None,
+            windows::Win32::System::Com::COINIT_APARTMENTTHREADED,
+        );
         let instance = GetModuleHandleW(None).unwrap_or_default();
         let class = w!("PillKitHostWidget");
         let wc = WNDCLASSW {
@@ -152,10 +160,14 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             forced,
             display: None,
             rendered: None,
+            rendered_width_pt: 0.0,
+            uia: ui_automation(),
+            occupied: None,
             tray_added: false,
             ticks: 0,
             win10_shrunk: None,
             last_placed: None,
+            placement_note: "",
         };
         TASKBAR_CREATED.store(
             RegisterWindowMessageW(w!("TaskbarCreated")),
@@ -331,23 +343,6 @@ fn child(parent: HWND, class: PCWSTR) -> Option<HWND> {
     }
 }
 
-fn reg_dword(root: HKEY, key: PCWSTR, value: PCWSTR) -> Option<u32> {
-    let mut data = 0u32;
-    let mut size = 4u32;
-    let r = unsafe {
-        RegGetValueW(
-            root,
-            key,
-            value,
-            RRF_RT_REG_DWORD,
-            None,
-            Some(&mut data as *mut u32 as *mut _),
-            Some(&mut size),
-        )
-    };
-    r.is_ok().then_some(data)
-}
-
 fn windows_build() -> u32 {
     let mut buf = [0u16; 32];
     let mut size = (buf.len() * 2) as u32;
@@ -371,8 +366,6 @@ fn windows_build() -> u32 {
         .unwrap_or(0)
 }
 
-const ADVANCED: PCWSTR = w!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced");
-
 fn fullscreen_app_running() -> bool {
     unsafe {
         SHQueryUserNotificationState()
@@ -383,44 +376,159 @@ fn fullscreen_app_running() -> bool {
     }
 }
 
-/// Where the pill goes, in screen coordinates, for a pill of `w`×`h` pixels.
-fn target_rect(taskbar: HWND, w: i32, h: i32, scale: f32) -> Option<RECT> {
+fn ui_automation() -> Option<windows::Win32::UI::Accessibility::IUIAutomation> {
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
+    use windows::Win32::UI::Accessibility::CUIAutomation;
+    let uia = unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) };
+    if let Err(e) = &uia {
+        log(format!(
+            "UI Automation unavailable ({e}); placement will be estimated"
+        ));
+    }
+    uia.ok()
+}
+
+/// Screen x-ranges of the taskbar's own items (Start, Search, app buttons,
+/// widgets, tray icons, clock), as reported by UI Automation. Merged and
+/// sorted. None if UI Automation can't read the taskbar.
+fn taskbar_items(
+    uia: &windows::Win32::UI::Accessibility::IUIAutomation,
+    taskbar: HWND,
+    tb: RECT,
+) -> Option<Vec<(i32, i32)>> {
+    use windows::Win32::UI::Accessibility::*;
+    let tb_w = tb.right - tb.left;
+    let mut ranges = Vec::new();
+    unsafe {
+        let root = uia.ElementFromHandle(taskbar).ok()?;
+        let all = root
+            .FindAll(TreeScope_Descendants, &uia.CreateTrueCondition().ok()?)
+            .ok()?;
+        for i in 0..all.Length().ok()? {
+            let Ok(e) = all.GetElement(i) else { continue };
+            let Ok(ct) = e.CurrentControlType() else {
+                continue;
+            };
+            let interactive = [
+                UIA_ButtonControlTypeId,
+                UIA_ListItemControlTypeId,
+                UIA_MenuItemControlTypeId,
+                UIA_EditControlTypeId,
+                UIA_SplitButtonControlTypeId,
+                UIA_ImageControlTypeId,
+                UIA_TextControlTypeId,
+            ];
+            if !interactive.contains(&ct) {
+                continue;
+            }
+            if e.CurrentIsOffscreen().map(|b| b.as_bool()).unwrap_or(false) {
+                continue;
+            }
+            let Ok(r) = e.CurrentBoundingRectangle() else {
+                continue;
+            };
+            let w = r.right - r.left;
+            // Skip empty boxes, anything outside the bar, and containers that
+            // span most of it.
+            if w <= 0 || r.bottom <= tb.top || r.top >= tb.bottom || w > tb_w * 2 / 5 {
+                continue;
+            }
+            ranges.push((r.left.max(tb.left), r.right.min(tb.right)));
+        }
+    }
+    if ranges.is_empty() {
+        return None;
+    }
+    ranges.sort();
+    let mut merged: Vec<(i32, i32)> = Vec::new();
+    for (l, r) in ranges {
+        match merged.last_mut() {
+            Some(last) if l <= last.1 + 2 => last.1 = last.1.max(r),
+            _ => merged.push((l, r)),
+        }
+    }
+    Some(merged)
+}
+
+fn occupied(s: &mut State, taskbar: HWND, tb: RECT) -> Option<Vec<(i32, i32)>> {
+    let fresh = s
+        .occupied
+        .as_ref()
+        .is_some_and(|(at, _)| at.elapsed() < std::time::Duration::from_secs(2));
+    if !fresh {
+        let items = s.uia.as_ref().and_then(|u| taskbar_items(u, taskbar, tb));
+        s.occupied = items.map(|v| (std::time::Instant::now(), v));
+    }
+    s.occupied.as_ref().map(|(_, v)| v.clone())
+}
+
+/// Finds free space for a `w`x`h` pill, in screen coordinates, without
+/// covering anything already on the taskbar. Prefers the empty stretch next
+/// to the weather widget, then the stretch just left of the tray.
+fn target_rect(s: &mut State, taskbar: HWND, w: i32, h: i32, scale: f32) -> Option<RECT> {
     let tb = rect_of(taskbar)?;
-    let vertical = (tb.bottom - tb.top) > (tb.right - tb.left);
-    if vertical {
+    if (tb.bottom - tb.top) > (tb.right - tb.left) {
         return None; // Side-docked taskbars (Windows 10) have no room for a pill.
     }
     let margin = (MARGIN_PT * scale) as i32;
     let y = tb.top + ((tb.bottom - tb.top) - h) / 2;
-    let tray_left = child(taskbar, w!("TrayNotifyWnd"))
-        .and_then(rect_of)
-        .map(|r| r.left)
-        .unwrap_or(tb.right - (320.0 * scale) as i32);
-
-    let x = if windows_build() >= 22000 {
-        let centred = reg_dword(HKEY_CURRENT_USER, ADVANCED, w!("TaskbarAl")).unwrap_or(1) == 1;
-        let widgets_on = reg_dword(HKEY_CURRENT_USER, ADVANCED, w!("TaskbarDa")).unwrap_or(1) == 1;
-        if centred {
-            // The weather widget's slot; sit beside it if it's switched on.
-            tb.left
-                + margin
-                + if widgets_on {
-                    (180.0 * scale) as i32
-                } else {
-                    0
-                }
-        } else {
-            tray_left - w - margin
-        }
-    } else {
-        tray_left - w - margin
-    };
-    Some(RECT {
+    let rect = |x: i32| RECT {
         left: x,
         top: y,
         right: x + w,
         bottom: y + h,
-    })
+    };
+
+    if let Some(mut items) = occupied(s, taskbar, tb) {
+        // Never treat our own pill as something in the way.
+        if let Some(own) = rect_of(s.hwnd) {
+            items.retain(|&(l, r)| (l - own.left).abs() > 2 || (r - own.right).abs() > 2);
+        }
+        // Gaps between the items, plus the ends of the bar.
+        let mut gaps = Vec::new();
+        let mut cursor = tb.left;
+        for &(l, r) in &items {
+            if l > cursor {
+                gaps.push((cursor, l));
+            }
+            cursor = cursor.max(r);
+        }
+        if tb.right > cursor {
+            gaps.push((cursor, tb.right));
+        }
+        // Stay where we are while that spot is still free, so the pill doesn't
+        // hop sides every time an app opens and the gaps change size.
+        if let Some((_, prev)) = s.last_placed {
+            let same_size = prev.right - prev.left == w;
+            let inside = prev.left >= tb.left + margin && prev.right <= tb.right - margin;
+            let clear = items
+                .iter()
+                .all(|&(l, r)| r + margin <= prev.left || l >= prev.right + margin);
+            if same_size && inside && clear {
+                return Some(rect(prev.left));
+            }
+        }
+        let fits = |g: &&(i32, i32)| g.1 - g.0 >= w + 2 * margin;
+        let mid = (tb.left + tb.right) / 2;
+        if let Some(g) = gaps.iter().filter(fits).find(|g| g.0 < mid) {
+            s.placement_note = "first free space from the left (beside the weather widget)";
+            return Some(rect(g.0 + margin));
+        }
+        if let Some(g) = gaps.iter().filter(fits).rev().find(|g| g.1 > mid) {
+            s.placement_note = "free space left of the tray";
+            return Some(rect(g.1 - w - margin));
+        }
+        s.placement_note = "no free space this wide";
+        return None;
+    }
+
+    // UI Automation unavailable: fall back to an estimate.
+    let tray_left = child(taskbar, w!("TrayNotifyWnd"))
+        .and_then(rect_of)
+        .map(|r| r.left)
+        .unwrap_or(tb.right - (320.0 * scale) as i32);
+    s.placement_note = "estimated (UI Automation unavailable)";
+    Some(rect(tray_left - w - margin))
 }
 
 /// Windows 10: narrow the task-button strip so it doesn't run under the pill.
@@ -491,30 +599,46 @@ fn layout(s: &mut State) {
     let bar_h = (tb.bottom - tb.top) as f32;
     let pill_h = (bar_h * 0.72).min(40.0 * scale).max(20.0 * scale).round() as u32;
 
-    if s.rendered.as_ref().map(|r| r.height) != Some(pill_h) {
-        let Some(fonts) = s.fonts.as_ref() else {
-            log("no font available; falling back to the tray");
-            s.mode = Mode::Tray;
-            return show_tray(s, &display);
-        };
-        s.rendered = Some(Rc::new(render(
-            &display.item,
-            fonts,
-            Metrics {
-                height: pill_h,
-                scale,
-                max_width_pt: 480.0,
-                fixed_width_pt: Some(
-                    pillkit_core::render::slot_width_override().unwrap_or(SLOT_WIDTH_PT),
-                ),
-            },
-        )));
+    // Full width first, then narrower, so the pill never covers anything.
+    let full = pillkit_core::render::slot_width_override().unwrap_or(SLOT_WIDTH_PT);
+    let mut placed = None;
+    for width_pt in [full, 180.0_f32.min(full), 150.0_f32.min(full)] {
+        if s.rendered.as_ref().map(|r| r.height) != Some(pill_h) || s.rendered_width_pt != width_pt
+        {
+            let Some(fonts) = s.fonts.as_ref() else {
+                log("no font available; falling back to the tray");
+                s.mode = Mode::Tray;
+                return show_tray(s, &display);
+            };
+            s.rendered = Some(Rc::new(render(
+                &display.item,
+                fonts,
+                Metrics {
+                    height: pill_h,
+                    scale,
+                    max_width_pt: 480.0,
+                    fixed_width_pt: Some(width_pt),
+                },
+            )));
+            s.rendered_width_pt = width_pt;
+        }
+        let r = s.rendered.clone().expect("just rendered");
+        if let Some(t) = target_rect(s, taskbar, r.width as i32, r.height as i32, scale) {
+            placed = Some(t);
+            break;
+        }
     }
     let r = s.rendered.clone().expect("just rendered");
     let r = r.as_ref();
     let (w, h) = (r.width as i32, r.height as i32);
 
-    let Some(target) = target_rect(taskbar, w, h, scale) else {
+    let Some(target) = placed else {
+        if s.mode != Mode::Tray {
+            log(format!(
+                "no room on the taskbar ({}); using the tray",
+                s.placement_note
+            ));
+        }
         s.mode = Mode::Tray;
         return show_tray(s, &display);
     };
@@ -525,8 +649,9 @@ fn layout(s: &mut State) {
         != Some((s.mode, target.left, target.top, target.right, target.bottom))
     {
         log(format!(
-            "placing pill: mode {:?}, at ({}, {}) size {}x{}; taskbar ({}, {})-({}, {}); scale {scale}; build {}",
-            s.mode, target.left, target.top, w, h, tb.left, tb.top, tb.right, tb.bottom, windows_build()
+            "placing pill: mode {:?}, at ({}, {}) size {}x{}; {}; taskbar ({}, {})-({}, {}); items {:?}; scale {scale}; build {}",
+            s.mode, target.left, target.top, w, h, s.placement_note, tb.left, tb.top, tb.right, tb.bottom,
+            s.occupied.as_ref().map(|(_, v)| v.clone()).unwrap_or_default(), windows_build()
         ));
         s.last_placed = Some((s.mode, target));
     }
