@@ -89,7 +89,7 @@ if (-not (Test-Path $envFile)) {
     "DATABASE_URL=sqlite:///storage/barkit.db",
     "SECRET_KEY=$secret",
     "SIGNING_KEY_PATH=storage/signing.key",
-    "PUBLIC_BASE_URL=http://localhost:5050",
+    "PUBLIC_BASE_URL=http://127.0.0.1:5050",
     "FEED_POLL_SECS=15"
   ) | Set-Content -Encoding ascii $envFile
 }
@@ -139,18 +139,18 @@ $srv = Start-Process -FilePath $venvPyw -ArgumentList "app.py" -WorkingDirectory
   -RedirectStandardOutput (Join-Path $Run "server.log") -RedirectStandardError (Join-Path $Run "server.err.log")
 $ok = $false
 for ($i = 0; $i -lt 60; $i++) {
-  try { Invoke-RestMethod http://localhost:5050/healthz | Out-Null; $ok = $true; break } catch { Start-Sleep -Milliseconds 500 }
+  try { Invoke-RestMethod http://127.0.0.1:5050/healthz | Out-Null; $ok = $true; break } catch { Start-Sleep -Milliseconds 500 }
 }
 if (-not $ok) { Fail "The server didn't start. See $Run\server.err.log" }
-$env:BARKIT_PUBLIC_KEY = (Invoke-RestMethod http://localhost:5050/v1/public-key).key
+$env:BARKIT_PUBLIC_KEY = (Invoke-RestMethod http://127.0.0.1:5050/v1/public-key).key
 if ($Mode -ne "auto") { $env:BARKIT_WIN_MODE = $Mode } else { Remove-Item Env:BARKIT_WIN_MODE -ErrorAction SilentlyContinue }
 $hst = Start-Process -FilePath $HostExe -ArgumentList "run" -WindowStyle Hidden -PassThru
 "$($srv.Id)`n$($hst.Id)" | Set-Content (Join-Path $Run "pids.txt")
-Write-Host "  Server: http://localhost:5050   Host mode: $Mode"
+Write-Host "  Server: http://127.0.0.1:5050   Host mode: $Mode"
 
 # ---------------------------------------------------------------- 5. Portal
 Step 5 "Opening the portal"
-Start-Process "http://localhost:5050/login"
+Start-Process "http://127.0.0.1:5050/login"
 Write-Host "  Developer login: demo@barkit.dev / demo-password"
 Write-Host "  Admin login:     admin@barkit.dev / admin-password"
 
@@ -158,4 +158,4 @@ Write-Host "  Admin login:     admin@barkit.dev / admin-password"
 Step 6 "Registering the demo app. Look at your taskbar!"
 Write-Host "  Host log: $Data\host.log"
 Write-Host "  To stop everything later, double-click stop.cmd."
-& $venvPy (Join-Path $PSScriptRoot "demo_app.py") $AppId $Key "http://localhost:5050"
+& $venvPy (Join-Path $PSScriptRoot "demo_app.py") $AppId $Key "http://127.0.0.1:5050"

@@ -68,6 +68,9 @@ struct App {
     local: Vec<Item>,
     conns: HashSet<u64>,
     license_fetched_at: i64,
+    /// While unlicensed: when to ask again, backing off 15 s, 30 s, ... 10 min.
+    license_retry_at: i64,
+    license_failures: u32,
     next_feed_at: i64,
     fetching_license: bool,
     fetching_feed: bool,
@@ -84,6 +87,8 @@ impl App {
             local: Vec::new(),
             conns: HashSet::new(),
             license_fetched_at: 0,
+            license_retry_at: 0,
+            license_failures: 0,
             next_feed_at: 0,
             fetching_license: false,
             fetching_feed: false,
@@ -305,9 +310,14 @@ impl Controller {
                     app.license_fetched_at = 0;
                     app.next_feed_at = 0;
                 }
+                if !app.licensed(now()) {
+                    // An app just connected: ask for its licence right away.
+                    app.license_retry_at = 0;
+                }
                 app.conns.insert(conn_id);
                 let licensed = app.licensed(now());
                 self.conn_app.insert(conn_id, app_id.clone());
+                log(format!("{app_id}: registered by an app (server {})", self.apps[&app_id].cached.server));
                 self.save(&app_id);
                 self.reply(conn_id, json!({"ok": true, "licensed": licensed}));
             }
@@ -386,11 +396,17 @@ impl Controller {
                 ));
                 app.license = Some(lic);
                 app.cached.license_token = Some(tok);
+                app.license_failures = 0;
                 app.last_error = None;
                 app.next_feed_at = 0;
             }
             Err(e) => {
-                log(format!("{app_id}: licence refresh failed: {e}"));
+                app.license_failures += 1;
+                let wait = (15i64 << (app.license_failures - 1).min(6)).min(600);
+                app.license_retry_at = now() + wait;
+                log(format!(
+                    "{app_id}: licence refresh failed: {e} (trying again in {wait} s)"
+                ));
                 // A definite "no" from the server switches the widget off now;
                 // network trouble keeps the cached licence until its deadline.
                 if e.starts_with("401") || e.starts_with("403") || e.starts_with("404") {
@@ -440,11 +456,15 @@ impl Controller {
         for (app_id, app) in self.apps.iter_mut() {
             let c = app.cached.clone();
             let near_deadline = app.license.as_ref().is_none_or(|l| l.exp - t < 2 * 86400);
-            if !app.fetching_license
-                && (t - app.license_fetched_at > LICENSE_REFRESH_SECS
-                    || (near_deadline && t - app.license_fetched_at > 600))
-            {
+            let licence_due = if app.licensed(t) {
+                t - app.license_fetched_at > LICENSE_REFRESH_SECS
+                    || (near_deadline && t - app.license_fetched_at > 600)
+            } else {
+                t >= app.license_retry_at
+            };
+            if !app.fetching_license && licence_due {
                 app.fetching_license = true;
+                log(format!("{app_id}: requesting a licence from {}", c.server));
                 let (tx, id) = (self.tx.clone(), app_id.clone());
                 std::thread::spawn(move || {
                     let result = net::fetch_license(&c.server, &c.app_id, &c.key, &c.bundle_id);

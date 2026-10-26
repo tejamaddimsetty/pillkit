@@ -4,6 +4,16 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.1.3] - 2026-10-27
+
+### Fixed
+- Host: a failed first licence request was retried only after 10 minutes,
+  so the pill could stay missing. It now retries after 15 s, 30 s, 1 min...
+  (up to 10 min), and immediately when an app connects.
+- Local setup talks to 127.0.0.1 instead of "localhost", which Windows
+  resolves to IPv6 first while the dev server listens on IPv4 only.
+- host.log records each step: app registered, licence requested, result.
+
 ## [0.1.2] - 2026-10-27
 
 ### Fixed

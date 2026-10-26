@@ -72,7 +72,7 @@ def main():
     if len(sys.argv) < 3:
         raise SystemExit(__doc__)
     app_id, key = sys.argv[1], sys.argv[2]
-    server = sys.argv[3] if len(sys.argv) > 3 else "http://localhost:5050"
+    server = sys.argv[3] if len(sys.argv) > 3 else "http://127.0.0.1:5050"
 
     c = connect()
     c.send({"op": "register", "app_id": app_id, "key": key, "bundle_id": "", "server": server})
@@ -85,13 +85,13 @@ def main():
         "action": {"type": "callback", "name": "open-build"}, "duration_secs": 10,
     }})
     c.recv()
-    print("Demo app registered. The widget should appear within a few seconds.")
-    print("Clicks on 'Build passed' show up here. Close this window to stop the demo app.")
+    print("Demo app registered. The widget should appear within a few seconds.", flush=True)
+    print("Clicks on 'Build passed' show up here. Close this window to stop the demo app.", flush=True)
     try:
         while True:
             msg = c.recv()
             if msg.get("event") == "callback":
-                print(f"  clicked: {msg.get('name')}")
+                print(f"  clicked: {msg.get('name')}", flush=True)
     except (ConnectionError, KeyboardInterrupt):
         pass
 

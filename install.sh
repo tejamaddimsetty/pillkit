@@ -31,7 +31,7 @@ if [[ ! -f "$SERVER/.env" ]]; then
 DATABASE_URL=sqlite:///storage/barkit.db
 SECRET_KEY=$("$PY" -c 'import secrets; print(secrets.token_hex(32))')
 SIGNING_KEY_PATH=storage/signing.key
-PUBLIC_BASE_URL=http://localhost:5050
+PUBLIC_BASE_URL=http://127.0.0.1:5050
 FEED_POLL_SECS=15
 ENV
 fi
@@ -64,17 +64,17 @@ echo "  Using $HOST"
 step 4 "Starting the server and the host"
 "$ROOT/stop.sh" --quiet || true
 (cd "$SERVER" && nohup .venv/bin/python app.py >"$RUN/server.log" 2>&1 & echo $! >"$RUN/server.pid")
-for _ in $(seq 60); do curl -fs http://localhost:5050/healthz >/dev/null && break; sleep 0.5; done
-curl -fs http://localhost:5050/healthz >/dev/null || fail "The server didn't start. See $RUN/server.log"
-export BARKIT_PUBLIC_KEY="$(curl -fs http://localhost:5050/v1/public-key | "$PY" -c 'import sys, json; print(json.load(sys.stdin)["key"])')"
+for _ in $(seq 60); do curl -fs http://127.0.0.1:5050/healthz >/dev/null && break; sleep 0.5; done
+curl -fs http://127.0.0.1:5050/healthz >/dev/null || fail "The server didn't start. See $RUN/server.log"
+export BARKIT_PUBLIC_KEY="$(curl -fs http://127.0.0.1:5050/v1/public-key | "$PY" -c 'import sys, json; print(json.load(sys.stdin)["key"])')"
 nohup "$HOST" run >"$RUN/host.out" 2>&1 & echo $! >"$RUN/host.pid"
-echo "  Server: http://localhost:5050"
+echo "  Server: http://127.0.0.1:5050"
 
 step 5 "Opening the portal"
-(command -v open >/dev/null && open http://localhost:5050/login) || (command -v xdg-open >/dev/null && xdg-open http://localhost:5050/login) || true
+(command -v open >/dev/null && open http://127.0.0.1:5050/login) || (command -v xdg-open >/dev/null && xdg-open http://127.0.0.1:5050/login) || true
 echo "  Developer login: demo@barkit.dev / demo-password"
 echo "  Admin login:     admin@barkit.dev / admin-password"
 
 step 6 "Registering the demo app. Look at your menu bar!"
 echo "  Host log: $DATA/host.log    Stop everything: ./stop.sh"
-exec "$SERVER/.venv/bin/python" "$ROOT/scripts/demo_app.py" "$APP_ID" "$KEY" "http://localhost:5050"
+exec "$SERVER/.venv/bin/python" "$ROOT/scripts/demo_app.py" "$APP_ID" "$KEY" "http://127.0.0.1:5050"
