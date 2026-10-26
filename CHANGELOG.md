@@ -4,6 +4,16 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.2.2] - 2026-10-27
+
+### Fixed
+- Windows: on tight taskbars (wide weather widget, many pinned apps, 125 %
+  scaling) no width fit, so the pill fell back to a tray icon that Windows 11
+  hides behind the ^ arrow, with a stock icon. The pill now keeps shrinking:
+  224 -> 180 -> 150 -> 120 pt (compact: icon and title) -> icon only, with
+  tighter margins. The tray fallback uses the item's own icon.
+- The "no room" log line lists the taskbar items it found.
+
 ## [0.2.1] - 2026-10-27
 
 ### Fixed

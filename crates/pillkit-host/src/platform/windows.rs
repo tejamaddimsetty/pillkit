@@ -23,8 +23,9 @@ use windows::Win32::Foundation::{
     BOOL, COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDC, ReleaseDC, SelectObject,
-    AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS,
+    CreateBitmap, CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDC, ReleaseDC,
+    SelectObject, AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION,
+    DIB_RGB_COLORS,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
@@ -44,7 +45,7 @@ use crate::paths::log;
 
 const TIMER_POLL: usize = 1;
 const WM_TRAY: u32 = WM_APP + 1;
-const MARGIN_PT: f32 = 8.0;
+const MARGIN_PT: f32 = 4.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Mode {
@@ -68,6 +69,8 @@ struct State {
     /// Screen x-ranges taken by taskbar items, refreshed every 2 s.
     occupied: Option<(std::time::Instant, Vec<(i32, i32)>)>,
     tray_added: bool,
+    /// The tray fallback's icon, drawn from the current item (not a stock icon).
+    tray_icon: Option<(String, HICON)>,
     ticks: u32,
     win10_shrunk: Option<(HWND, i32)>,
     last_placed: Option<(Mode, RECT)>,
@@ -164,6 +167,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             uia: ui_automation(),
             occupied: None,
             tray_added: false,
+            tray_icon: None,
             ticks: 0,
             win10_shrunk: None,
             last_placed: None,
@@ -602,7 +606,15 @@ fn layout(s: &mut State) {
     // Full width first, then narrower, so the pill never covers anything.
     let full = pillkit_core::render::slot_width_override().unwrap_or(SLOT_WIDTH_PT);
     let mut placed = None;
-    for width_pt in [full, 180.0_f32.min(full), 150.0_f32.min(full)] {
+    // Last steps: a compact one-line pill, then just the icon (a square).
+    let icon_only = pill_h as f32 / scale;
+    for width_pt in [
+        full,
+        180.0_f32.min(full),
+        150.0_f32.min(full),
+        120.0_f32.min(full),
+        icon_only,
+    ] {
         if s.rendered.as_ref().map(|r| r.height) != Some(pill_h) || s.rendered_width_pt != width_pt
         {
             let Some(fonts) = s.fonts.as_ref() else {
@@ -635,8 +647,10 @@ fn layout(s: &mut State) {
     let Some(target) = placed else {
         if s.mode != Mode::Tray {
             log(format!(
-                "no room on the taskbar ({}); using the tray",
-                s.placement_note
+                "no room on the taskbar ({}); using the tray. taskbar {:?}; items {:?}; scale {scale}",
+                s.placement_note,
+                (tb.left, tb.top, tb.right, tb.bottom),
+                s.occupied.as_ref().map(|(_, v)| v.clone()).unwrap_or_default()
             ));
         }
         s.mode = Mode::Tray;
@@ -825,6 +839,38 @@ fn blit(hwnd: HWND, r: &Rendered, pos: POINT, child: bool) -> bool {
     }
 }
 
+/// A 32x32 icon of the item (its PNG or monogram on its colour), for the tray.
+fn item_icon(item: &pillkit_core::model::Item, fonts: &Fonts) -> Option<HICON> {
+    let r = render(
+        item,
+        fonts,
+        Metrics {
+            height: 32,
+            scale: 1.0,
+            max_width_pt: 32.0,
+            fixed_width_pt: Some(32.0),
+        },
+    );
+    let (w, h) = (r.width as i32, r.height as i32);
+    let pixels = r.to_bgra_straight();
+    let mask = vec![0u8; (((w + 15) / 16) * 2 * h) as usize];
+    unsafe {
+        let color = CreateBitmap(w, h, 1, 32, Some(pixels.as_ptr() as *const _));
+        let mask = CreateBitmap(w, h, 1, 1, Some(mask.as_ptr() as *const _));
+        let info = ICONINFO {
+            fIcon: true.into(),
+            xHotspot: 0,
+            yHotspot: 0,
+            hbmMask: mask,
+            hbmColor: color,
+        };
+        let icon = CreateIconIndirect(&info).ok();
+        let _ = DeleteObject(color);
+        let _ = DeleteObject(mask);
+        icon
+    }
+}
+
 fn tray_data(s: &State, tip: &str) -> NOTIFYICONDATAW {
     let mut nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
@@ -832,7 +878,11 @@ fn tray_data(s: &State, tip: &str) -> NOTIFYICONDATAW {
         uID: 1,
         uFlags: NIF_MESSAGE | NIF_TIP | NIF_ICON,
         uCallbackMessage: WM_TRAY,
-        hIcon: unsafe { LoadIconW(None, IDI_APPLICATION).unwrap_or_default() },
+        hIcon: s
+            .tray_icon
+            .as_ref()
+            .map(|(_, i)| *i)
+            .unwrap_or_else(|| unsafe { LoadIconW(None, IDI_APPLICATION).unwrap_or_default() }),
         ..Default::default()
     };
     for (dst, src) in nid.szTip.iter_mut().zip(tip.encode_utf16().take(127)) {
@@ -851,6 +901,15 @@ fn show_tray(s: &mut State, d: &Display) {
     }
     if !d.item.label.is_empty() {
         tip = format!("{} · {tip}", d.item.label);
+    }
+    if s.tray_icon.as_ref().map(|(id, _)| id.as_str()) != Some(d.item.id.as_str()) {
+        if let Some(icon) = s.fonts.as_ref().and_then(|f| item_icon(&d.item, f)) {
+            if let Some((_, old)) = s.tray_icon.replace((d.item.id.clone(), icon)) {
+                unsafe {
+                    let _ = DestroyIcon(old);
+                }
+            }
+        }
     }
     let nid = tray_data(s, &tip);
     let ok: BOOL =

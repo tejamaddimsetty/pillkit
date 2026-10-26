@@ -100,6 +100,21 @@ impl Rendered {
         out
     }
 
+    /// Straight (non-premultiplied) BGRA, top-down: what Windows icons want.
+    pub fn to_bgra_straight(&self) -> Vec<u8> {
+        let mut out = self.pixmap.data().to_vec();
+        for px in out.as_chunks_mut::<4>().0 {
+            let a = px[3] as u32;
+            if a > 0 && a < 255 {
+                for c in &mut px[..3] {
+                    *c = ((*c as u32 * 255 + a / 2) / a).min(255) as u8;
+                }
+            }
+            px.swap(0, 2);
+        }
+        out
+    }
+
     pub fn to_png(&self) -> Vec<u8> {
         self.pixmap.encode_png().unwrap_or_default()
     }
@@ -123,8 +138,42 @@ pub fn render(item: &Item, fonts: &Fonts, m: Metrics) -> Rendered {
     let pad = (h * 0.30).round();
     let icon = (h * 0.62).round();
     let gap = (h * 0.26).round();
-    let two_line = !item.subtitle.is_empty() && h_pt >= 21.0;
     let max_w = (m.fixed_width_pt.unwrap_or(m.max_width_pt) * m.scale).round();
+
+    // Tight spaces: below ~1.8x the height there's room for the icon only.
+    if max_w < h * 1.8 {
+        let width = max_w.max(h) as u32;
+        let mut pixmap = Pixmap::new(width, h as u32).expect("non-zero size");
+        rounded_rect(
+            &mut pixmap,
+            0.0,
+            0.0,
+            width as f32,
+            h,
+            h * 0.24,
+            rgba(bg, 255),
+        );
+        let icon = (h * 0.66).round();
+        draw_icon(
+            &mut pixmap,
+            item,
+            fonts,
+            ((width as f32 - icon) / 2.0).round(),
+            ((h - icon) / 2.0).round(),
+            icon,
+            bg,
+            fg,
+        );
+        return Rendered {
+            width,
+            height: h as u32,
+            pixmap,
+        };
+    }
+    // Compact pill (under 140 pt): one line, title only, no label chip. The
+    // label still shows in the card on hover.
+    let compact = m.fixed_width_pt.is_some_and(|w| w < 140.0);
+    let two_line = !compact && !item.subtitle.is_empty() && h_pt >= 21.0;
 
     // Sizes in points, so text stays readable from a 22 pt to a 32 pt bar.
     let (title_px, sub_px) = if two_line {
@@ -137,7 +186,7 @@ pub fn render(item: &Item, fonts: &Fonts, m: Metrics) -> Rendered {
         (px, px)
     };
     let label_px = (h_pt * 0.27).clamp(7.5, 9.5) * m.scale;
-    let label_w = if item.label.is_empty() {
+    let label_w = if compact || item.label.is_empty() {
         0.0
     } else {
         measure(&fonts.bold, label_px, &item.label) + label_px * 1.2
@@ -151,7 +200,7 @@ pub fn render(item: &Item, fonts: &Fonts, m: Metrics) -> Rendered {
         let w = measure(&fonts.bold, title_px, &t).max(measure(&fonts.regular, sub_px, &s));
         (t, s, w)
     } else {
-        let joined = if item.subtitle.is_empty() {
+        let joined = if compact || item.subtitle.is_empty() {
             item.title.clone()
         } else {
             format!("{} · {}", item.title, item.subtitle)
@@ -446,6 +495,21 @@ mod tests {
             render(&short, &fonts, m).width,
             (SLOT_WIDTH_PT * 2.0) as u32
         );
+    }
+
+    #[test]
+    fn narrow_slots_become_compact_then_icon_only() {
+        let Some(fonts) = Fonts::system() else { return };
+        let m = |w: f32| Metrics {
+            height: 58,
+            scale: 2.0,
+            max_width_pt: 480.0,
+            fixed_width_pt: Some(w),
+        };
+        assert_eq!(render(&item(), &fonts, m(120.0)).width, 240);
+        let icon = render(&item(), &fonts, m(29.0));
+        assert_eq!((icon.width, icon.height), (58, 58));
+        assert_eq!(icon.to_bgra_straight().len(), 58 * 58 * 4);
     }
 
     #[test]
