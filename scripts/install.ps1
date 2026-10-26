@@ -20,9 +20,24 @@ $Data = Join-Path $env:LOCALAPPDATA "barkit"
 $Run = Join-Path $Data "run"
 $Repo = "tejamaddimsetty/barkit"
 New-Item -ItemType Directory -Force -Path $Run, (Join-Path $Data "bin") | Out-Null
+# Everything shown in this window is also saved here, to send if something fails.
+$Log = Join-Path $Run "install.log"
+try { Start-Transcript -Path $Log -Force | Out-Null } catch {}
+trap {
+  Write-Host ""
+  Write-Host "  Something went wrong: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "  Full log: $Log" -ForegroundColor Yellow
+  try { Stop-Transcript | Out-Null } catch {}
+  exit 1
+}
 
 function Step($n, $text) { Write-Host ""; Write-Host "[$n/6] $text" -ForegroundColor Cyan }
-function Fail($text) { Write-Host ""; Write-Host "  $text" -ForegroundColor Red; exit 1 }
+function Fail($text) {
+  Write-Host ""; Write-Host "  $text" -ForegroundColor Red
+  Write-Host "  Full log: $Log" -ForegroundColor Yellow
+  try { Stop-Transcript | Out-Null } catch {}
+  exit 1
+}
 
 function Find-Python {
   $candidates = @()
