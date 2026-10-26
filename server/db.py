@@ -107,7 +107,7 @@ Index("ix_audit_at", audit.c.at)
 
 
 def make_engine(url=None):
-    url = url or os.environ.get("DATABASE_URL", "sqlite:///storage/barkit.db")
+    url = url or os.environ.get("DATABASE_URL", "sqlite:///storage/pillkit.db")
     if url.startswith("sqlite:///") and not url.startswith("sqlite:////"):
         # Relative SQLite paths are relative to this folder, not the shell's cwd.
         path = Path(__file__).parent / url[len("sqlite:///"):]

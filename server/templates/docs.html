@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Docs · barkit{% endblock %}
+{% block title %}Docs · Pill Kit{% endblock %}
 {% block body %}
 <div class="docs">
   <aside class="docs-nav">
@@ -23,15 +23,15 @@
   </aside>
 
   <article class="docs-body">
-    <h1 id="overview">barkit docs</h1>
-    <p class="lead">barkit puts a small widget from your app next to the clock: the macOS menu bar and the Windows taskbar. Use it for sponsors you sign yourself, launches, or live status. Every item is signed, labelled, and can be hidden by the person using the computer.</p>
-    <pre><code>your app ──(SDK)──▶ barkit-host ──(HTTPS, signed)──▶ barkit server
+    <h1 id="overview">Pill Kit docs</h1>
+    <p class="lead">Pill Kit puts a small widget from your app next to the clock: the macOS menu bar and the Windows taskbar. Use it for sponsors you sign yourself, launches, or live status. Every item is signed, labelled, and can be hidden by the person using the computer.</p>
+    <pre><code>your app ──(SDK)──▶ pillkit-host ──(HTTPS, signed)──▶ Pill Kit server
                         │
                         └── draws the widget in the menu bar / taskbar</code></pre>
     <ul>
       <li><b>Your app</b> ships the SDK. It talks to the host over a local socket.</li>
-      <li><b>barkit-host</b> is one small program per user. It owns the slot, so several apps share it fairly instead of fighting. It keeps showing your items when your app is closed.</li>
-      <li><b>The barkit server</b> (this site) holds your items and signs everything the host shows.</li>
+      <li><b>pillkit-host</b> is one small program per user. It owns the slot, so several apps share it fairly instead of fighting. It keeps showing your items when your app is closed.</li>
+      <li><b>The Pill Kit server</b> (this site) holds your items and signs everything the host shows.</li>
     </ul>
 
     <h2 id="quickstart">Quickstart</h2>
@@ -42,20 +42,20 @@
       <li><b>Create an item.</b> Title, subtitle, icon, colours, and what happens on click. The editor shows a live preview.</li>
       <li><b>Add the SDK</b> and call <code>start()</code>. Your item appears next to the clock within a few minutes.</li>
     </ol>
-<pre><code>npm install @barkit/sdk</code></pre>
-<pre><code>import { Barkit } from "@barkit/sdk";
+<pre><code>npm install @pillkit/sdk</code></pre>
+<pre><code>import { PillKit } from "@pillkit/sdk";
 
-const bar = await Barkit.start({
+const bar = await PillKit.start({
   appId: "app_…",
   key: "pk_…",
   bundleId: "com.acme.clip",   // must match the portal, if you set one there
 });</code></pre>
 
     <h2 id="licence">Licence and review</h2>
-    <p>barkit uses a one-time <b>lifetime developer licence</b>. It covers 3 apps with up to 20 items each.</p>
+    <p>Pill Kit uses a one-time <b>lifetime developer licence</b>. It covers 3 apps with up to 20 items each.</p>
     <ul>
       <li><b>Pending:</b> you can sign in and look around.</li>
-      <li><b>Approved, invoice open:</b> everything works; items carry a small <i>barkit dev</i> label.</li>
+      <li><b>Approved, invoice open:</b> everything works; items carry a small <i>Pill Kit dev</i> label.</li>
       <li><b>Active:</b> paid, no label.</li>
       <li><b>Revoked or suspended:</b> your items switch off.</li>
     </ul>
@@ -63,7 +63,7 @@ const bar = await Barkit.start({
     <h2 id="sdk">Node / Electron SDK</h2>
     <table class="ref">
       <tr><th>Call</th><th>What it does</th></tr>
-      <tr><td><code>Barkit.start(opts)</code></td><td>Connects to the host (installing and starting it the first time) and registers your app. Returns a <code>Barkit</code>.</td></tr>
+      <tr><td><code>PillKit.start(opts)</code></td><td>Connects to the host (installing and starting it the first time) and registers your app. Returns a <code>PillKit</code>.</td></tr>
       <tr><td><code>bar.show(item)</code></td><td>Shows your own item, such as a build status. It joins the rotation with your portal items.</td></tr>
       <tr><td><code>bar.clear()</code></td><td>Removes the items you showed with <code>show()</code>.</td></tr>
       <tr><td><code>bar.status()</code></td><td>Licence state, item counts and the last error.</td></tr>
@@ -71,8 +71,8 @@ const bar = await Barkit.start({
       <tr><td><code>bar.unregister()</code></td><td>Stops showing anything for this app, even after restarts.</td></tr>
       <tr><td><code>bar.close()</code></td><td>Disconnects. Portal items keep showing.</td></tr>
     </table>
-    <p><b>Options:</b> <code>appId</code>, <code>key</code>, <code>bundleId</code>, <code>server</code> (defaults to the barkit cloud), <code>hostPath</code> (a custom host binary).</p>
-    <p><b>Electron:</b> the host binary must sit outside the asar archive. Add <code>"asarUnpack": ["**/node_modules/@barkit/sdk/bin/**"]</code> to your electron-builder config.</p>
+    <p><b>Options:</b> <code>appId</code>, <code>key</code>, <code>bundleId</code>, <code>server</code> (defaults to the Pill Kit cloud), <code>hostPath</code> (a custom host binary).</p>
+    <p><b>Electron:</b> the host binary must sit outside the asar archive. Add <code>"asarUnpack": ["**/node_modules/@pillkit/sdk/bin/**"]</code> to your electron-builder config.</p>
 <pre><code>await bar.show({
   id: "build",
   title: "Build passed",
@@ -137,18 +137,18 @@ bar.on("callback", (e) => openBuildWindow(e.item_id));</code></pre>
       <li><b>Overlay:</b> a small always-on-top window over the same spot, hidden during full-screen apps.</li>
       <li><b>Tray:</b> a notification-area icon with a tooltip. Always works.</li>
     </ol>
-    <p>Force a mode with <code>BARKIT_WIN_MODE=embedded|overlay|tray</code>. No code is injected into Explorer, so antivirus stays quiet. The host starts at login from <code>HKCU\…\Run</code>; no admin rights needed. Right-click opens the menu (the hover card is coming to Windows).</p>
+    <p>Force a mode with <code>PILLKIT_WIN_MODE=embedded|overlay|tray</code>. No code is injected into Explorer, so antivirus stays quiet. The host starts at login from <code>HKCU\…\Run</code>; no admin rights needed. Right-click opens the menu (the hover card is coming to Windows).</p>
 
     <h2 id="linux">Linux</h2>
     <p>Planned: a tray item for KDE, Mint and XFCE, and a GNOME Shell extension. The host already runs on Linux for development and logs what it would show.</p>
 
     <h2 id="host">The host</h2>
-<pre><code>barkit-host run                     # what the login entry runs
-barkit-host install                 # copy to the user data folder, start at login
-barkit-host uninstall               # remove it and its cache
-barkit-host render item.json out.png
-barkit-host --version</code></pre>
-    <p>Data folder: <code>~/Library/Application Support/barkit</code> (macOS), <code>%LOCALAPPDATA%\barkit</code> (Windows). The log is <code>host.log</code> in that folder. When several apps bundle different host versions, the newest one wins.</p>
+<pre><code>pillkit-host run                     # what the login entry runs
+pillkit-host install                 # copy to the user data folder, start at login
+pillkit-host uninstall               # remove it and its cache
+pillkit-host render item.json out.png
+pillkit-host --version</code></pre>
+    <p>Data folder: <code>~/Library/Application Support/pillkit</code> (macOS), <code>%LOCALAPPDATA%\pillkit</code> (Windows). The log is <code>host.log</code> in that folder. When several apps bundle different host versions, the newest one wins.</p>
 
     <h2 id="security">Security</h2>
     <ul>
@@ -157,7 +157,7 @@ barkit-host --version</code></pre>
       <li>The local socket is per user; a process still can't show anything without a valid licence.</li>
       <li>No personal data is collected; events are daily counts per item.</li>
     </ul>
-    <p>Report a vulnerability: see <a href="https://github.com/tejamaddimsetty/barkit/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+    <p>Report a vulnerability: see <a href="https://github.com/tejamaddimsetty/pillkit/blob/main/SECURITY.md">SECURITY.md</a>.</p>
 
     <h2 id="troubleshooting">Troubleshooting</h2>
     <dl class="faq">
@@ -165,12 +165,12 @@ barkit-host --version</code></pre>
       <dd>Check it's switched on and not scheduled in the future. Hosts check for new items every few minutes. <code>bar.status()</code> shows the licence state and last error.</dd>
       <dt>"This app can only open URLs you've allowed".</dt>
       <dd>Add the link's site to the app's allowed URL prefixes, or use the one-click "Allow and save" button in the editor.</dd>
-      <dt>It shows "barkit dev".</dt>
+      <dt>It shows "Pill Kit dev".</dt>
       <dd>Your licence invoice is still open. The label disappears once it's marked paid.</dd>
       <dt>The widget vanished on macOS.</dt>
       <dd>The menu bar ran out of room. Quit an app with menu bar icons; the host also shrinks the pill to fit.</dd>
       <dt>Nothing on Windows.</dt>
-      <dd>Check <code>%LOCALAPPDATA%\barkit\host.log</code>. Try <code>BARKIT_WIN_MODE=overlay</code> or <code>tray</code>.</dd>
+      <dd>Check <code>%LOCALAPPDATA%\pillkit\host.log</code>. Try <code>PILLKIT_WIN_MODE=overlay</code> or <code>tray</code>.</dd>
     </dl>
   </article>
 </div>

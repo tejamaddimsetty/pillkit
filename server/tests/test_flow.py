@@ -18,7 +18,7 @@ def unb64(s):
 
 def open_envelope(token, public_key_b64):
     prefix, body, sig = token.split(".")
-    assert prefix == "barkit1"
+    assert prefix == "pillkit1"
     Ed25519PublicKey.from_public_bytes(unb64(public_key_b64)).verify(unb64(sig), f"{prefix}.{body}".encode())
     return json.loads(unb64(body))
 
@@ -46,9 +46,9 @@ def make_admin(c):
     engine = c.application.extensions["engine"]
     from sqlalchemy import update
     import db
-    post(c, "/apply", name="Admin", email="admin@barkit.dev", password="adminpassword1", use_case="I run the barkit platform itself")
+    post(c, "/apply", name="Admin", email="admin@pillkit.dev", password="adminpassword1", use_case="I run the pillkit platform itself")
     with engine.begin() as conn:
-        conn.execute(update(db.developers).where(db.developers.c.email == "admin@barkit.dev").values(is_admin=True, status="approved"))
+        conn.execute(update(db.developers).where(db.developers.c.email == "admin@pillkit.dev").values(is_admin=True, status="approved"))
 
 
 def dev_id(c, email):
@@ -105,7 +105,7 @@ def test_full_journey(client):
 
     # 5. Admin marks the invoice paid: watermark goes away.
     post(c, "/logout")
-    c.post("/login", data={"csrf": csrf(c), "email": "admin@barkit.dev", "password": "adminpassword1"})
+    c.post("/login", data={"csrf": csrf(c), "email": "admin@pillkit.dev", "password": "adminpassword1"})
     lic_id = lic["lic"]
     post(c, f"/admin/licenses/{lic_id}/paid", amount="499", currency="USD", invoice_ref="INV-001")
     lic = open_envelope(c.post("/v1/license", json=body, headers=auth).get_json()["token"], pub)
@@ -298,11 +298,11 @@ def test_developers_never_see_admin(client):
     post(c, "/logout")
     make_admin(c)
     post(c, "/logout")
-    r = c.post("/login", data={"csrf": csrf(c), "email": "admin@barkit.dev", "password": "adminpassword1"})
+    r = c.post("/login", data={"csrf": csrf(c), "email": "admin@pillkit.dev", "password": "adminpassword1"})
     assert r.headers["Location"].endswith("/admin")
     assert "Admin console" in c.get("/admin").data.decode()
 
 
 def test_docs_page_is_public(client):
     r = client.get("/docs")
-    assert r.status_code == 200 and b"Quickstart" in r.data and b"Barkit.start" in r.data
+    assert r.status_code == 200 and b"Quickstart" in r.data and b"PillKit.start" in r.data

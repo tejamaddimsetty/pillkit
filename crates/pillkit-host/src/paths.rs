@@ -5,17 +5,17 @@ use std::path::PathBuf;
 
 pub fn data_dir() -> PathBuf {
     let dir = if cfg!(target_os = "macos") {
-        home().join("Library/Application Support/barkit")
+        home().join("Library/Application Support/pillkit")
     } else if cfg!(windows) {
         std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
             .unwrap_or_else(home)
-            .join("barkit")
+            .join("pillkit")
     } else {
         std::env::var_os("XDG_DATA_HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|| home().join(".local/share"))
-            .join("barkit")
+            .join("pillkit")
     };
     let _ = std::fs::create_dir_all(&dir);
     dir
@@ -36,7 +36,7 @@ pub fn ipc_endpoint() -> String {
             .chars()
             .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
             .collect();
-        format!(r"\\.\pipe\barkit-host-{user}")
+        format!(r"\\.\pipe\pillkit-host-{user}")
     } else {
         data_dir().join("host.sock").to_string_lossy().into_owned()
     }

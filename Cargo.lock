@@ -27,35 +27,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
-name = "barkit-core"
-version = "0.1.4"
-dependencies = [
- "base64",
- "ed25519-dalek",
- "fontdue",
- "rand",
- "serde",
- "serde_json",
- "tiny-skia",
-]
-
-[[package]]
-name = "barkit-host"
-version = "0.1.4"
-dependencies = [
- "barkit-core",
- "base64",
- "native-tls",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "serde",
- "serde_json",
- "ureq",
- "windows",
-]
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -734,6 +705,35 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "pillkit-core"
+version = "0.2.0"
+dependencies = [
+ "base64",
+ "ed25519-dalek",
+ "fontdue",
+ "rand",
+ "serde",
+ "serde_json",
+ "tiny-skia",
+]
+
+[[package]]
+name = "pillkit-host"
+version = "0.2.0"
+dependencies = [
+ "base64",
+ "native-tls",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "pillkit-core",
+ "serde",
+ "serde_json",
+ "ureq",
+ "windows",
+]
 
 [[package]]
 name = "pkcs8"

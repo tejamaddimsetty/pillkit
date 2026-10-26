@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import spark, chart, pill %}
-{% block title %}{{ a.name }} · barkit{% endblock %}
+{% block title %}{{ a.name }} · Pill Kit{% endblock %}
 {% block body %}
 <div class="page-head">
   <h1>{{ a.name }}</h1>
@@ -56,10 +56,10 @@
 
 {% elif tab == 'integrate' %}
 <div class="card code">
-<pre><code>// npm install @barkit/sdk
-import { Barkit } from "@barkit/sdk";
+<pre><code>// npm install @pillkit/sdk
+import { PillKit } from "@pillkit/sdk";
 
-const bar = await Barkit.start({
+const bar = await PillKit.start({
   appId: "{{ a.id }}",
   key: "{{ a.publishable_key }}",
   bundleId: "{{ a.bundle_id or 'com.example.app' }}",

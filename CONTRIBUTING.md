@@ -12,9 +12,9 @@ Thanks for helping. A few ground rules keep this codebase healthy.
 ## Running checks
 
 ```bash
-cargo test -p barkit-core
-cargo build -p barkit-host
-cargo check -p barkit-host --target x86_64-pc-windows-msvc   # from macOS/Linux
+cargo test -p pillkit-core
+cargo build -p pillkit-host
+cargo check -p pillkit-host --target x86_64-pc-windows-msvc   # from macOS/Linux
 cd server && .venv/bin/python -m pytest -q tests
 ```
 

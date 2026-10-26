@@ -1,4 +1,4 @@
-"""End-to-end check used in CI: talk to a running barkit-host like an app
+"""End-to-end check used in CI: talk to a running pillkit-host like an app
 does, and confirm it registers and gets a licence from the local server.
 
     python scripts/smoke_test.py APP_ID KEY [SERVER]
@@ -13,17 +13,22 @@ sys.path.insert(0, os.path.dirname(__file__))
 from demo_app import Conn, connect  # noqa: E402
 
 
+_START = None
+
+
 def host_log():
+    """host.log written since this test started."""
     if os.name == "nt":
-        path = os.path.join(os.environ["LOCALAPPDATA"], "barkit", "host.log")
+        path = os.path.join(os.environ["LOCALAPPDATA"], "pillkit", "host.log")
     elif sys.platform == "darwin":
-        path = os.path.expanduser("~/Library/Application Support/barkit/host.log")
+        path = os.path.expanduser("~/Library/Application Support/pillkit/host.log")
     else:
-        path = os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "barkit", "host.log")
+        path = os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "pillkit", "host.log")
     try:
-        return open(path, encoding="utf-8", errors="replace").read()
+        text = open(path, encoding="utf-8", errors="replace").read()
     except OSError:
-        return "(no host.log)"
+        return ""
+    return text[_START:] if _START is not None else text
 
 
 def fail(msg):
@@ -32,6 +37,8 @@ def fail(msg):
 
 
 def main():
+    global _START
+    _START = len(host_log())
     app_id, key = sys.argv[1], sys.argv[2]
     server = sys.argv[3] if len(sys.argv) > 3 else "http://127.0.0.1:5050"
     c = connect(timeout=30)
@@ -66,11 +73,27 @@ def main():
         st = request({"op": "status"})
         if st.get("licensed") and st.get("feed_items", 0) > 0:
             print("status:", st)
-            print("PASS: registered, licensed, feed received")
+            break
+        time.sleep(2)
+    else:
+        fail(f"not licensed after 45 s: {st}")
+
+    # The pill must actually be put somewhere, and the host must survive it.
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        log = host_log()
+        if "CRASH" in log:
+            fail("the host crashed")
+        if "placing pill" in log or "geometry:" in log or "show [" in log:
+            time.sleep(8)  # let it rotate and re-layout a few times
+            if "CRASH" in host_log():
+                fail("the host crashed after placing the pill")
+            request({"op": "status"})  # still answering?
+            print("PASS: registered, licensed, feed received, pill placed, host alive")
             print("--- host.log ---\n" + host_log())
             return
-        time.sleep(2)
-    fail(f"not licensed after 45 s: {st}")
+        time.sleep(1)
+    fail("the pill was never placed")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 [package]
-name = "barkit-core"
-description = "Platform-independent core of barkit: model, signatures, rotation, rendering"
+name = "pillkit-core"
+description = "Platform-independent core of pillkit: model, signatures, rotation, rendering"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

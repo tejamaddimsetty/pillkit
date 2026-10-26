@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}barkit{% endblock %}</title>
+<title>{% block title %}Pill Kit{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=css_v) }}">
@@ -12,12 +12,12 @@
 <body class="auth-body">
 <main class="auth">
   <section class="auth-form">
-    <a class="brand" href="{{ url_for('index') }}">{% include "_logo.html" %}<span>barkit</span></a>
+    <a class="brand" href="{{ url_for('index') }}">{% include "_logo.html" %}<span>Pill Kit</span></a>
     <div class="auth-inner">
       {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
       {% block form %}{% endblock %}
     </div>
-    <footer class="auth-foot muted"><a href="{{ url_for('why') }}">How barkit treats end users</a></footer>
+    <footer class="auth-foot muted"><a href="{{ url_for('why') }}">How Pill Kit treats end users</a></footer>
   </section>
 
   <section class="auth-show" aria-hidden="true">

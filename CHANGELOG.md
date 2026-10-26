@@ -4,10 +4,31 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.2.0] - 2026-10-27
+
+### Changed
+- **Renamed to Pill Kit** (`pillkit` in code): crates `pillkit-core` and
+  `pillkit-host`, SDK `@pillkit/sdk` (class `PillKit`), environment variables
+  `PILLKIT_*`, data folder `pillkit`, signed envelopes `pillkit1.`.
+
+### Added
+- `pillkit-preview` download: double-click to see sample pills in the menu
+  bar or taskbar, with no server, licence or setup.
+- One-line Windows setup: `irm .../scripts/get.ps1 | iex`, with Start / Stop
+  shortcuts on the Desktop.
+
+### Fixed
+- Windows: the host crashed right after placing the pill. Windows sends our
+  window messages during SetParent / SetWindowPos while we hold its state;
+  those nested messages now skip instead of re-borrowing (which panicked and
+  aborted the process).
+- CI's Windows smoke test now also requires the pill to be placed and the
+  host to stay alive.
+
 ## [0.1.4] - 2026-10-27
 
 ### Fixed
-- Windows: apps couldn't register ("barkit-host closed the connection"). The
+- Windows: apps couldn't register ("pillkit-host closed the connection"). The
   named pipe used synchronous I/O, where Windows serialises a pending read
   and a reply on the same handle. It now uses overlapped I/O.
 - The host logs crashes and dropped connections to host.log.
@@ -54,7 +75,7 @@ semantic versioning.
 
 ## [0.1.0] - 2026-10-26
 
-First public release. `barkit` is a working codename.
+First public release. `pillkit` is a working codename.
 
 ### Host (Rust)
 - macOS menu bar item: real menu bar height detection (notch-aware), 224 pt
@@ -77,4 +98,4 @@ First public release. `barkit` is a working codename.
 - Docs at /docs.
 
 ### SDK
-- `@barkit/sdk` for Node and Electron.
+- `@pillkit/sdk` for Node and Electron.

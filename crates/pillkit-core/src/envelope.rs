@@ -1,4 +1,4 @@
-//! `barkit1.<payload>.<signature>` signed envelopes (Ed25519).
+//! `pillkit1.<payload>.<signature>` signed envelopes (Ed25519).
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use base64::Engine;
@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 
 use crate::model::{Feed, License};
 
-const PREFIX: &str = "barkit1";
+const PREFIX: &str = "pillkit1";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum EnvelopeError {

@@ -1,8 +1,8 @@
 // node examples/node-demo.mjs APP_ID KEY [SERVER]
-import { Barkit } from "../sdks/node/index.js";
+import { PillKit } from "../sdks/node/index.js";
 
 const [appId, key, server = "http://127.0.0.1:5050"] = process.argv.slice(2);
-const bar = await Barkit.start({ appId, key, server, hostPath: process.env.BARKIT_HOST_PATH });
+const bar = await PillKit.start({ appId, key, server, hostPath: process.env.PILLKIT_HOST_PATH });
 console.log("registered; licensed so far:", bar.licensed);
 
 await bar.show({

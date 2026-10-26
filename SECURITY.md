@@ -1,11 +1,11 @@
 # Security
 
-barkit draws inside the operating system's own chrome, so we treat security
+Pill Kit draws inside the operating system's own chrome, so we treat security
 reports as the highest priority.
 
 ## Reporting
 
-Email security@barkit.dev (codename address; update before launch) with steps to
+Email security@pillkit.dev (codename address; update before launch) with steps to
 reproduce. Please don't open a public issue. We aim to reply within 2 working
 days and to fix critical issues within 14 days.
 

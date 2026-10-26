@@ -1,4 +1,4 @@
-"""barkit server: developer portal, admin console and the host API (port 5050).
+"""pillkit server: developer portal, admin console and the host API (port 5050).
 
     python app.py                       run the server
     python app.py create-admin EMAIL    make (or promote) an admin account
@@ -27,8 +27,8 @@ import db
 from signing import Signer
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [barkit] %(message)s", datefmt="%H:%M:%S")
-log = logging.getLogger("barkit")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [pillkit] %(message)s", datefmt="%H:%M:%S")
+log = logging.getLogger("pillkit")
 
 LICENSE_TTL = 30 * 86400
 FEED_TTL = 3600
@@ -54,7 +54,7 @@ def sha256(s):
 
 
 def url_allowed(url, prefixes):
-    """Same rule the host applies (barkit-core policy::url_allowed)."""
+    """Same rule the host applies (pillkit-core policy::url_allowed)."""
     url = (url or "").strip()
     if not url or any(ord(c) < 32 for c in url):
         return False
@@ -315,7 +315,7 @@ def create_app(config=None):
         elif len(f.get("password", "")) < 10:
             err = "Use a password of at least 10 characters"
         elif len(form["use_case"]) < 20:
-            err = "Tell us a bit more about how you'll use barkit (20+ characters)"
+            err = "Tell us a bit more about how you'll use pillkit (20+ characters)"
         elif one(select(db.developers.c.id).where(db.developers.c.email == form["email"].lower())):
             err = "An account with that email already exists. Sign in instead."
         if err:
@@ -725,7 +725,7 @@ def create_app(config=None):
         token = signer.seal({
             "typ": "license", "lic": lic["id"], "dev": a["developer_id"], "app_id": a["id"],
             "bundle_id": a["bundle_id"], "plan": lic["plan"],
-            # Approved but unpaid: everything works, with a "barkit dev" label.
+            # Approved but unpaid: everything works, with a "Pill Kit dev" label.
             "entitlements": {"watermark": lic["status"] != "active", "max_items": lic["max_items"]},
             "iat": t, "exp": t + LICENSE_TTL,
         })
@@ -833,7 +833,7 @@ def create_admin(email):
             sys.exit("Password too short")
         c.execute(insert(db.developers).values(
             id=new_id("dev"), email=email, password_hash=generate_password_hash(pw), name="Admin", company="", website="",
-            country="", use_case="barkit administrator", status="approved", is_admin=True, review_note="", created_at=now()))
+            country="", use_case="pillkit administrator", status="approved", is_admin=True, review_note="", created_at=now()))
         print(f"created admin {email}")
 
 

@@ -75,9 +75,9 @@ pub const SLOT_WIDTH_PT: f32 = 224.0;
 /// full slot (macOS hides status items that don't fit beside the notch).
 pub const SLOT_WIDTHS_PT: [f32; 4] = [SLOT_WIDTH_PT, 200.0, 180.0, 160.0];
 
-/// `BARKIT_SLOT_WIDTH=280` pins the width, for trying sizes while designing.
+/// `PILLKIT_SLOT_WIDTH=280` pins the width, for trying sizes while designing.
 pub fn slot_width_override() -> Option<f32> {
-    std::env::var("BARKIT_SLOT_WIDTH")
+    std::env::var("PILLKIT_SLOT_WIDTH")
         .ok()?
         .parse::<f32>()
         .ok()

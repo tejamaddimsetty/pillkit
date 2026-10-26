@@ -15,28 +15,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test -p barkit-core
-      - run: cargo build -p barkit-host --release
+      - run: cargo test -p pillkit-core
+      - run: cargo build -p pillkit-host --release
         env:
           # Set this repository secret to the production server's public key
           # (GET /v1/public-key). Release hosts trust only this key.
-          BARKIT_PUBLIC_KEY: ${{ secrets.BARKIT_PUBLIC_KEY }}
+          PILLKIT_PUBLIC_KEY: ${{ secrets.PILLKIT_PUBLIC_KEY }}
       - uses: actions/upload-artifact@v4
         with:
-          name: barkit-host-${{ runner.os }}-${{ runner.arch }}
+          name: pillkit-host-${{ runner.os }}-${{ runner.arch }}
           path: |
-            target/release/barkit-host
-            target/release/barkit-host.exe
+            target/release/pillkit-host
+            target/release/pillkit-host.exe
           if-no-files-found: ignore
-      # Dev build: accepts a local test server's key via BARKIT_PUBLIC_KEY.
+      # Dev build: accepts a local test server's key via PILLKIT_PUBLIC_KEY.
       # This is the one to use for hands-on testing (docs/WINDOWS_TESTING.md).
-      - run: cargo build -p barkit-host
+      - run: cargo build -p pillkit-host
       - uses: actions/upload-artifact@v4
         with:
-          name: barkit-host-dev-${{ runner.os }}-${{ runner.arch }}
+          name: pillkit-host-dev-${{ runner.os }}-${{ runner.arch }}
           path: |
-            target/debug/barkit-host
-            target/debug/barkit-host.exe
+            target/debug/pillkit-host
+            target/debug/pillkit-host.exe
           if-no-files-found: ignore
 
   # Runs the real host on Windows and talks to it like an app does.
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: cargo build -p barkit-host
+      - run: cargo build -p pillkit-host
       - run: python -m pip install -r server/requirements.txt
       - name: Start server, start host, register an app
         shell: pwsh
@@ -59,9 +59,9 @@ jobs:
           $key = ($seed | Select-String "KEY=(pk_.*)").Matches[0].Groups[1].Value.Trim()
           Start-Process python -ArgumentList "app.py" -WindowStyle Hidden
           for ($i = 0; $i -lt 60; $i++) { try { Invoke-RestMethod http://127.0.0.1:5050/healthz | Out-Null; break } catch { Start-Sleep -Milliseconds 500 } }
-          $env:BARKIT_PUBLIC_KEY = (Invoke-RestMethod http://127.0.0.1:5050/v1/public-key).key
+          $env:PILLKIT_PUBLIC_KEY = (Invoke-RestMethod http://127.0.0.1:5050/v1/public-key).key
           Set-Location ..
-          Start-Process target\debug\barkit-host.exe -ArgumentList "run" -WindowStyle Hidden
+          Start-Process target\debug\pillkit-host.exe -ArgumentList "run" -WindowStyle Hidden
           python scripts\smoke_test.py $appId $key http://127.0.0.1:5050
 
   server:

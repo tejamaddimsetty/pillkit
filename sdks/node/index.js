@@ -1,4 +1,4 @@
-// @barkit/sdk: talks to the per-user barkit-host over a local socket
+// @pillkit/sdk: talks to the per-user pillkit-host over a local socket
 // (docs/PROTOCOL.md §5). Installs and starts the host on first use.
 
 import { spawn, execFileSync } from "node:child_process";
@@ -11,19 +11,19 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.join(here, "package.json"), "utf8"));
-const BUNDLED_HOST_VERSION = pkg.barkit.hostVersion;
-const EXE = process.platform === "win32" ? "barkit-host.exe" : "barkit-host";
+const BUNDLED_HOST_VERSION = pkg.pillkit.hostVersion;
+const EXE = process.platform === "win32" ? "pillkit-host.exe" : "pillkit-host";
 
 export function dataDir() {
-  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "barkit");
-  if (process.platform === "win32") return path.join(process.env.LOCALAPPDATA || os.homedir(), "barkit");
-  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "barkit");
+  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "pillkit");
+  if (process.platform === "win32") return path.join(process.env.LOCALAPPDATA || os.homedir(), "pillkit");
+  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "pillkit");
 }
 
 export function endpoint() {
   if (process.platform === "win32") {
     const user = (process.env.USERNAME || "user").replace(/[^A-Za-z0-9_-]/g, "");
-    return `\\\\.\\pipe\\barkit-host-${user}`;
+    return `\\\\.\\pipe\\pillkit-host-${user}`;
   }
   return path.join(dataDir(), "host.sock");
 }
@@ -31,7 +31,7 @@ export function endpoint() {
 function bundledHost(opts) {
   const candidates = [
     opts.hostPath,
-    process.env.BARKIT_HOST_PATH,
+    process.env.PILLKIT_HOST_PATH,
     // Electron: ship the binary outside the asar archive (asarUnpack).
     path.join(here, "bin", `${process.platform}-${process.arch}`, EXE).replace("app.asar", "app.asar.unpacked"),
   ].filter(Boolean);
@@ -70,7 +70,7 @@ class Connection extends EventEmitter {
     const fail = (err) => {
       if (closed) return;
       closed = true;
-      for (const p of this.pending.splice(0)) p.reject(err || new Error("barkit-host disconnected"));
+      for (const p of this.pending.splice(0)) p.reject(err || new Error("pillkit-host disconnected"));
       this.emit("close");
     };
     socket.on("error", fail);
@@ -82,7 +82,7 @@ class Connection extends EventEmitter {
       const entry = { resolve, reject };
       const timer = setTimeout(() => {
         this.pending = this.pending.filter((p) => p !== entry);
-        reject(new Error(`barkit-host did not answer "${body.op}"`));
+        reject(new Error(`pillkit-host did not answer "${body.op}"`));
       }, timeoutMs);
       entry.resolve = (v) => { clearTimeout(timer); resolve(v); };
       entry.reject = (e) => { clearTimeout(timer); reject(e); };
@@ -125,7 +125,7 @@ async function connectOrLaunch(opts) {
     }
   }
   if (conn) return conn;
-  if (!host) throw new Error("barkit-host is not running and no bundled host binary was found (set hostPath or BARKIT_HOST_PATH)");
+  if (!host) throw new Error("pillkit-host is not running and no bundled host binary was found (set hostPath or PILLKIT_HOST_PATH)");
 
   installAndLaunch(host);
   for (let i = 0; i < 50; i++) {
@@ -133,14 +133,14 @@ async function connectOrLaunch(opts) {
     conn = await connect().catch(() => null);
     if (conn) return conn;
   }
-  throw new Error("barkit-host did not start");
+  throw new Error("pillkit-host did not start");
 }
 
-export class Barkit extends EventEmitter {
+export class PillKit extends EventEmitter {
   /** @param {import('./index').StartOptions} opts */
   static async start(opts) {
-    if (!opts?.appId || !opts?.key) throw new Error("Barkit.start needs appId and key");
-    const bar = new Barkit(opts);
+    if (!opts?.appId || !opts?.key) throw new Error("PillKit.start needs appId and key");
+    const bar = new PillKit(opts);
     await bar.#open();
     return bar;
   }
@@ -163,7 +163,7 @@ export class Barkit extends EventEmitter {
       op: "register", app_id: this.#opts.appId, key: this.#opts.key,
       bundle_id: this.#opts.bundleId || "", server: this.#opts.server || "",
     });
-    if (!res.ok) throw new Error(`barkit: ${res.error}`);
+    if (!res.ok) throw new Error(`pillkit: ${res.error}`);
     this.#conn = conn;
     this.licensed = !!res.licensed;
     // Re-send local items after a reconnect (host restarted or was upgraded).
@@ -178,9 +178,9 @@ export class Barkit extends EventEmitter {
   }
 
   async #call(body) {
-    if (!this.#conn) throw new Error("barkit-host is not connected");
+    if (!this.#conn) throw new Error("pillkit-host is not connected");
     const res = await this.#conn.request(body);
-    if (!res.ok) throw new Error(`barkit: ${res.error}`);
+    if (!res.ok) throw new Error(`pillkit: ${res.error}`);
     return res;
   }
 
@@ -211,4 +211,4 @@ export class Barkit extends EventEmitter {
   }
 }
 
-export default Barkit;
+export default PillKit;

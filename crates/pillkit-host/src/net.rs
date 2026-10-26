@@ -1,11 +1,11 @@
-//! HTTPS calls to the barkit server. Everything returned is a signed envelope;
+//! HTTPS calls to the pillkit server. Everything returned is a signed envelope;
 //! verification happens in the controller, not here.
 
 use std::time::Duration;
 
 use serde_json::{json, Value};
 
-pub const DEFAULT_SERVER: &str = "https://api.barkit.dev";
+pub const DEFAULT_SERVER: &str = "https://api.pillkit.dev";
 
 fn agent() -> ureq::Agent {
     let mut builder = ureq::AgentBuilder::new();
@@ -15,7 +15,7 @@ fn agent() -> ureq::Agent {
     }
     builder
         .timeout(Duration::from_secs(15))
-        .user_agent(concat!("barkit-host/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("pillkit-host/", env!("CARGO_PKG_VERSION")))
         .build()
 }
 

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import spark %}
-{% block title %}Dashboard · barkit{% endblock %}
+{% block title %}Dashboard · Pill Kit{% endblock %}
 {% block body %}
 <div class="dash-head">
   <h1>Hi {{ user.name.split(' ')[0] }}</h1>
@@ -25,7 +25,7 @@
   <div class="card status"><span class="tag err">Licence revoked</span><p>Contact us if you think this is a mistake.</p></div>
 {% elif lic %}
   {% if lic.status == 'awaiting_payment' %}
-  <p class="muted dev-note">You're approved. We'll email your lifetime licence invoice{% if price %} ({{ price }}){% endif %}. Until it's paid, everything works and items carry a small <i>barkit dev</i> label.</p>
+  <p class="muted dev-note">You're approved. We'll email your lifetime licence invoice{% if price %} ({{ price }}){% endif %}. Until it's paid, everything works and items carry a small <i>Pill Kit dev</i> label.</p>
   {% endif %}
 
   <div class="section-head apps-head"><h2>Your apps <span class="muted">{{ apps|length }} of {{ lic.max_apps }}</span></h2>

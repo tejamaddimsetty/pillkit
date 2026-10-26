@@ -6,9 +6,9 @@ export interface StartOptions {
   key: string;
   /** Must match the bundle ID registered in the portal, if you set one there. */
   bundleId?: string;
-  /** barkit server, defaults to https://api.barkit.dev */
+  /** pillkit server, defaults to https://api.pillkit.dev */
   server?: string;
-  /** Path to a barkit-host binary, if you don't use the bundled one. */
+  /** Path to a pillkit-host binary, if you don't use the bundled one. */
   hostPath?: string;
 }
 
@@ -40,8 +40,8 @@ export interface CallbackEvent {
   name: string;
 }
 
-export declare class Barkit extends EventEmitter {
-  static start(opts: StartOptions): Promise<Barkit>;
+export declare class PillKit extends EventEmitter {
+  static start(opts: StartOptions): Promise<PillKit>;
   licensed: boolean;
   show(item: Item): Promise<{ ok: true; licensed: boolean }>;
   clear(): Promise<{ ok: true }>;
@@ -54,4 +54,4 @@ export declare class Barkit extends EventEmitter {
 
 export declare function dataDir(): string;
 export declare function endpoint(): string;
-export default Barkit;
+export default PillKit;

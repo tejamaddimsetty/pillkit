@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import chart %}
-{% block title %}{{ 'Edit item' if item else 'New item' }} · {{ a.name }} · barkit{% endblock %}
+{% block title %}{{ 'Edit item' if item else 'New item' }} · {{ a.name }} · Pill Kit{% endblock %}
 {% block body %}
 <p><a href="{{ url_for('app_detail', app_id=a.id) }}">← {{ a.name }}</a></p>
 <div class="page-head">

@@ -26,17 +26,19 @@ jobs:
       - name: Build release and dev hosts
         shell: bash
         env:
-          BARKIT_PUBLIC_KEY: ${{ secrets.BARKIT_PUBLIC_KEY }}
+          PILLKIT_PUBLIC_KEY: ${{ secrets.PILLKIT_PUBLIC_KEY }}
         run: |
-          cargo build -p barkit-host --release
-          cargo build -p barkit-host
+          cargo build -p pillkit-host --release
+          cargo build -p pillkit-host
           mkdir dist
-          cp target/release/barkit-host${{ matrix.ext }} dist/barkit-host-${{ matrix.name }}${{ matrix.ext }}
-          cp target/debug/barkit-host${{ matrix.ext }} dist/barkit-host-dev-${{ matrix.name }}${{ matrix.ext }}
+          cp target/release/pillkit-host${{ matrix.ext }} dist/pillkit-host-${{ matrix.name }}${{ matrix.ext }}
+          cp target/debug/pillkit-host${{ matrix.ext }} dist/pillkit-host-dev-${{ matrix.name }}${{ matrix.ext }}
+          # Same release binary, preview name: double-click shows sample pills, no setup.
+          cp target/release/pillkit-host${{ matrix.ext }} dist/pillkit-preview-${{ matrix.name }}${{ matrix.ext }}
       - name: Upload to the release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "See CHANGELOG.md. Testing a build? Use the barkit-host-dev-* file for your OS (install.cmd / install.sh fetch it for you)." || true
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "See CHANGELOG.md. Just want to see the pill? Download pillkit-preview-* for your OS and double-click it. Full local setup: install.cmd / install.sh fetch the pillkit-host-dev-* file for you." || true
           gh release upload "$GITHUB_REF_NAME" dist/* --clobber

@@ -9,7 +9,6 @@ use std::cell::{Cell, RefCell};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::time::{Duration, Instant};
 
-use barkit_core::render::{render, slot_width_override, Fonts, Metrics, SLOT_WIDTHS_PT};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
@@ -23,6 +22,7 @@ use objc2_app_kit::{
 use objc2_foundation::{
     CGFloat, MainThreadMarker, NSData, NSPoint, NSRect, NSSize, NSString, NSTimer,
 };
+use pillkit_core::render::{render, slot_width_override, Fonts, Metrics, SLOT_WIDTHS_PT};
 
 use super::{CardView, Display, UiCmd, UiEvent};
 use crate::controller::{Msg, MENU_HIDE, MENU_WHY};
@@ -54,7 +54,7 @@ declare_class!(
     unsafe impl ClassType for Delegate {
         type Super = NSObject;
         type Mutability = mutability::MainThreadOnly;
-        const NAME: &'static str = "BarkitHostDelegate";
+        const NAME: &'static str = "PillKitHostDelegate";
     }
 
     impl DeclaredClass for Delegate {

@@ -7,11 +7,11 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
-use barkit_core::envelope::{open_feed, open_license, parse_public_key};
-use barkit_core::model::{Action, Feed, Item, License};
-use barkit_core::policy;
-use barkit_core::rotation::Rotator;
-use barkit_core::VerifyingKey;
+use pillkit_core::envelope::{open_feed, open_license, parse_public_key};
+use pillkit_core::model::{Action, Feed, Item, License};
+use pillkit_core::policy;
+use pillkit_core::rotation::Rotator;
+use pillkit_core::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -47,7 +47,7 @@ const LICENSE_REFRESH_SECS: i64 = 24 * 3600;
 const EVENT_FLUSH_SECS: i64 = 300;
 const HIDE_SECS: i64 = 12 * 3600;
 const MAX_LOCAL_ITEMS: usize = 20;
-const WHY_URL: &str = "https://barkit.dev/why";
+const WHY_URL: &str = "https://pillkit.dev/why";
 
 /// What we keep on disk per app so the widget survives the app (and the host)
 /// restarting, and keeps working offline until the licence's refresh deadline.
@@ -123,7 +123,7 @@ impl App {
             .into_iter()
             .map(|mut i| {
                 if lic.entitlements.watermark {
-                    i.label = "barkit dev".into();
+                    i.label = "Pill Kit dev".into();
                 }
                 policy::sanitize(i)
             })
@@ -148,14 +148,14 @@ pub struct Controller {
 pub fn public_key() -> Option<VerifyingKey> {
     // Debug builds may point at a local dev server with its own key.
     if cfg!(debug_assertions) {
-        if let Ok(k) = std::env::var("BARKIT_PUBLIC_KEY") {
+        if let Ok(k) = std::env::var("PILLKIT_PUBLIC_KEY") {
             return parse_public_key(&k);
         }
         if let Ok(k) = std::fs::read_to_string(data_dir().join("dev-public-key")) {
             return parse_public_key(&k);
         }
     }
-    option_env!("BARKIT_PUBLIC_KEY").and_then(parse_public_key)
+    option_env!("PILLKIT_PUBLIC_KEY").and_then(parse_public_key)
 }
 
 fn cache_dir() -> PathBuf {
@@ -288,7 +288,7 @@ impl Controller {
                 .to_string()
         };
         match op {
-            "hello" => self.reply(conn_id, json!({"ok": true, "version": env!("CARGO_PKG_VERSION"), "protocol": barkit_core::PROTOCOL_VERSION})),
+            "hello" => self.reply(conn_id, json!({"ok": true, "version": env!("CARGO_PKG_VERSION"), "protocol": pillkit_core::PROTOCOL_VERSION})),
             "register" => {
                 let (app_id, key, bundle_id) = (s("app_id"), s("key"), s("bundle_id"));
                 let server = Some(s("server")).filter(|x| !x.is_empty()).unwrap_or_else(|| net::DEFAULT_SERVER.into());

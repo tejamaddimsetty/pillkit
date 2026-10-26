@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="dev.barkit.host" version="0.1.2.0"/>
+  <assemblyIdentity type="win32" name="dev.pillkit.host" version="0.1.2.0"/>
   <!-- Declaring Windows 8+ is what allows a layered (per-pixel alpha) child
        window inside the taskbar. Without it, embedded mode is refused. -->
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">

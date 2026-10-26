@@ -1,4 +1,4 @@
-//! `barkit-host install` copies the running binary into the per-user data dir
+//! `pillkit-host install` copies the running binary into the per-user data dir
 //! and registers it to start at login. No admin rights are needed anywhere.
 
 use std::path::PathBuf;
@@ -7,9 +7,9 @@ use crate::paths::{data_dir, log};
 
 pub fn installed_path() -> PathBuf {
     let name = if cfg!(windows) {
-        "barkit-host.exe"
+        "pillkit-host.exe"
     } else {
-        "barkit-host"
+        "pillkit-host"
     };
     data_dir().join("bin").join(name)
 }
@@ -17,7 +17,7 @@ pub fn installed_path() -> PathBuf {
 #[cfg(target_os = "macos")]
 fn agent_plist() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_default())
-        .join("Library/LaunchAgents/dev.barkit.host.plist")
+        .join("Library/LaunchAgents/dev.pillkit.host.plist")
 }
 
 pub fn install() -> std::io::Result<PathBuf> {
@@ -38,7 +38,7 @@ pub fn install() -> std::io::Result<PathBuf> {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>dev.barkit.host</string>
+  <key>Label</key><string>dev.pillkit.host</string>
   <key>ProgramArguments</key><array><string>{}</string><string>run</string></array>
   <key>RunAtLoad</key><true/>
   <key>ProcessType</key><string>Interactive</string>
@@ -60,7 +60,7 @@ pub fn install() -> std::io::Result<PathBuf> {
                 "add",
                 r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
                 "/v",
-                "barkit",
+                "pillkit",
                 "/t",
                 "REG_SZ",
                 "/d",
@@ -89,7 +89,7 @@ pub fn uninstall() -> std::io::Result<()> {
                 "delete",
                 r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
                 "/v",
-                "barkit",
+                "pillkit",
                 "/f",
             ])
             .status();

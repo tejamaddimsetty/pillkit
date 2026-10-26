@@ -63,7 +63,7 @@ pub fn listen(tx: Sender<Msg>) -> std::io::Result<()> {
     if UnixStream::connect(&path).is_ok() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::AddrInUse,
-            "another barkit-host is running",
+            "another pillkit-host is running",
         ));
     }
     let _ = std::fs::remove_file(&path);

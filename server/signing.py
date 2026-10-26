@@ -1,4 +1,4 @@
-"""Ed25519 signing of licences and feeds, in the `barkit1.<payload>.<sig>`
+"""Ed25519 signing of licences and feeds, in the `pillkit1.<payload>.<sig>`
 format the host verifies (docs/PROTOCOL.md §1)."""
 import base64
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-PREFIX = "barkit1"
+PREFIX = "pillkit1"
 
 
 def b64url(data: bytes) -> str:

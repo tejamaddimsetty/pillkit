@@ -4,7 +4,7 @@
 
 use std::sync::mpsc::{Receiver, Sender};
 
-use barkit_core::model::Item;
+use pillkit_core::model::Item;
 
 #[cfg(target_os = "macos")]
 mod macos;

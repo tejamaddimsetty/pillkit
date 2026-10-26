@@ -1,10 +1,10 @@
-# barkit protocol v1
+# Pill Kit protocol v1
 
 This is the contract between the four moving parts. Anything that changes it
 needs an RFC in `rfcs/`.
 
 ```
- developer app ──(SDK, local IPC)──▶ barkit-host ──(HTTPS)──▶ barkit server
+ developer app ──(SDK, local IPC)──▶ pillkit-host ──(HTTPS)──▶ Pill Kit server
                                           │
                                           └── draws the widget in the OS bar
 ```
@@ -14,10 +14,10 @@ needs an RFC in `rfcs/`.
 Everything the server sends the host (licences, feeds) is a signed envelope:
 
 ```
-barkit1.<base64url(payload JSON)>.<base64url(ed25519 signature)>
+pillkit1.<base64url(payload JSON)>.<base64url(ed25519 signature)>
 ```
 
-The signature covers the ASCII bytes `barkit1.<payload part>`. The host ships
+The signature covers the ASCII bytes `pillkit1.<payload part>`. The host ships
 with the server's public key and refuses anything that does not verify, has
 expired, or is for a different app. This is what stops a hijacked network or a
 hostile local process from putting arbitrary content in the user's taskbar.
@@ -102,10 +102,10 @@ The host checks every URL against `allowed_url_prefixes` before opening it.
 Transport: newline-delimited JSON.
 
 - macOS / Linux: Unix socket at `<data dir>/host.sock`
-- Windows: named pipe `\\.\pipe\barkit-host-<username>`
+- Windows: named pipe `\\.\pipe\pillkit-host-<username>`
 
-Data dir: `~/Library/Application Support/barkit` (macOS),
-`%LOCALAPPDATA%\barkit` (Windows), `$XDG_DATA_HOME/barkit` (Linux).
+Data dir: `~/Library/Application Support/pillkit` (macOS),
+`%LOCALAPPDATA%\pillkit` (Windows), `$XDG_DATA_HOME/pillkit` (Linux).
 
 SDK → host:
 

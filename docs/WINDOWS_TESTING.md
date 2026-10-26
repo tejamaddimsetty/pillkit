@@ -1,25 +1,28 @@
 # Testing the taskbar widget on Windows
 
-## 1. Install (one double-click)
+## 1. Install (one line)
 
-1. On GitHub, click **Code → Download ZIP** (or `git clone https://github.com/tejamaddimsetty/barkit`) and unzip it.
-2. Double-click **`install.cmd`** in the folder.
+Open **PowerShell** from the Start menu, paste this and press Enter:
 
-That's it. The installer:
+```powershell
+irm https://raw.githubusercontent.com/tejamaddimsetty/pillkit/main/scripts/get.ps1 | iex
+```
 
-- installs Python for your user if it's missing (it asks first, using `winget`)
-- sets up the local server and a demo account
-- downloads `barkit-host` from the latest GitHub release
-- starts everything, opens the portal, and registers a demo app
+It downloads the latest code, sets everything up (installing Python for your
+user if needed, after asking), starts the server and host, opens the portal and
+registers a demo app. Within a few seconds the pill appears in the taskbar.
 
-Within a few seconds the pill appears in the taskbar and rotates between your
-items. Double-click **`stop.cmd`** to stop everything. Running `install.cmd`
-again restarts it (and skips setup that's already done).
+It also puts **Start Pill Kit** and **Stop Pill Kit** on your Desktop. Next time,
+just double-click those. Run the one-liner again whenever you want the newest
+version.
+
+Prefer not to paste commands? Download the ZIP from GitHub, **Extract All**,
+and double-click `install.cmd` instead.
 
 If Windows asks "Do you want to allow this app?" or SmartScreen warns, choose
 **More info → Run anyway**: the files aren't code-signed yet.
 
-Options (run from a terminal in the folder):
+Options (from a terminal in the Pill Kit folder):
 
 ```powershell
 install.cmd -Mode overlay     # force a mode: auto | embedded | overlay | tray
@@ -48,5 +51,5 @@ Note the result of each, with a screenshot if anything looks off.
 ## 3. Send back
 
 - Screenshots of the taskbar for checks 1–3
-- `%LOCALAPPDATA%\barkit\host.log` (it says which mode was used and why it fell back)
+- `%LOCALAPPDATA%\pillkit\host.log` (it says which mode was used and why it fell back)
 - Windows version: run `winver`

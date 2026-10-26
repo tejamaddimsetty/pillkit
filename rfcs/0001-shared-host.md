@@ -9,7 +9,7 @@ the single taskbar slot, and the widget would vanish whenever its app closed.
 
 ## Proposal
 
-The SDK installs one `barkit-host` per user and starts it at login. It owns the
+The SDK installs one `pillkit-host` per user and starts it at login. It owns the
 slot, verifies licences and feeds, and rotates between registered apps (round
 robin across apps, weighted within an app). SDKs talk to it over a local
 socket (docs/PROTOCOL.md §5). The newest host version wins: an SDK that bundles

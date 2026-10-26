@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/barkit-core", "crates/barkit-host"]
+members = ["crates/pillkit-core", "crates/pillkit-host"]
 
 [workspace.package]
-version = "0.1.4"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/tejamaddimsetty/barkit"
+repository = "https://github.com/tejamaddimsetty/pillkit"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

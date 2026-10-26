@@ -1,5 +1,5 @@
 """A stand-in "developer app" for local testing, using only the Python standard
-library. It does what the SDK does: connect to barkit-host, register, and show
+library. It does what the SDK does: connect to pillkit-host, register, and show
 a status item next to the portal's items.
 
     python scripts/demo_app.py APP_ID KEY [SERVER]
@@ -15,9 +15,9 @@ import time
 def endpoint():
     if os.name == "nt":
         user = re.sub(r"[^A-Za-z0-9_-]", "", os.environ.get("USERNAME", "user"))
-        return rf"\\.\pipe\barkit-host-{user}"
-    base = os.path.expanduser("~/Library/Application Support/barkit") if sys.platform == "darwin" else \
-        os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "barkit")
+        return rf"\\.\pipe\pillkit-host-{user}"
+    base = os.path.expanduser("~/Library/Application Support/pillkit") if sys.platform == "darwin" else \
+        os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "pillkit")
     return os.path.join(base, "host.sock")
 
 
@@ -54,7 +54,7 @@ class Conn:
             line = line.strip()
             if line:
                 return json.loads(line)
-        raise ConnectionError("barkit-host closed the connection")
+        raise ConnectionError("pillkit-host closed the connection")
 
 
 def connect(timeout=15):
@@ -64,7 +64,7 @@ def connect(timeout=15):
             return Conn()
         except OSError:
             if time.time() > deadline:
-                raise SystemExit("Could not reach barkit-host. Is it running? See host.log in the barkit data folder.")
+                raise SystemExit("Could not reach pillkit-host. Is it running? See host.log in the pillkit data folder.")
             time.sleep(0.5)
 
 

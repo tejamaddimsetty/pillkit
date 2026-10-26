@@ -1,16 +1,16 @@
 [package]
-name = "barkit-host"
+name = "pillkit-host"
 description = "The per-user process that owns the bar slot and draws the widget"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "barkit-host"
+name = "pillkit-host"
 path = "src/main.rs"
 
 [dependencies]
-barkit-core = { path = "../barkit-core" }
+pillkit-core = { path = "../pillkit-core" }
 serde.workspace = true
 serde_json.workspace = true
 base64.workspace = true

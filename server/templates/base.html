@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}barkit{% endblock %}</title>
+<title>{% block title %}Pill Kit{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=css_v) }}">
@@ -12,7 +12,7 @@
 <body>
 <header class="top"><div class="inner">
   <div class="crumbs">
-    <a class="brand" href="{{ url_for('admin') if user and user.is_admin else (url_for('dashboard') if user else url_for('index')) }}" aria-label="barkit home">{% include "_logo.html" %}<span>barkit</span></a>
+    <a class="brand" href="{{ url_for('admin') if user and user.is_admin else (url_for('dashboard') if user else url_for('index')) }}" aria-label="Pill Kit home">{% include "_logo.html" %}<span>Pill Kit</span></a>
     {% if user and my_apps and a is defined and a %}
     <span class="sep">/</span>
     <details class="switcher">

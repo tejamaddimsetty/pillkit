@@ -1,6 +1,6 @@
 //! Windows: puts the pill in the taskbar.
 //!
-//! Three modes, tried in order (override with `BARKIT_WIN_MODE`):
+//! Three modes, tried in order (override with `PILLKIT_WIN_MODE`):
 //!
 //! 1. `embedded`: our layered window becomes a child of the taskbar
 //!    (`Shell_TrayWnd`), so it moves, hides and stacks with it. On Windows 11
@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
-use barkit_core::render::{render, Fonts, Metrics, Rendered, SLOT_WIDTH_PT};
+use pillkit_core::render::{render, Fonts, Metrics, Rendered, SLOT_WIDTH_PT};
 use windows::core::{w, HSTRING, PCWSTR};
 use windows::Win32::Foundation::{
     BOOL, COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM,
@@ -64,7 +64,6 @@ struct State {
     forced: Option<Mode>,
     display: Option<Display>,
     rendered: Option<Rc<Rendered>>,
-    taskbar_created: u32,
     tray_added: bool,
     ticks: u32,
     win10_shrunk: Option<(HWND, i32)>,
@@ -75,8 +74,20 @@ thread_local! {
     static STATE: RefCell<Option<State>> = const { RefCell::new(None) };
 }
 
+/// The "TaskbarCreated" message id, kept outside STATE so the window
+/// procedure can check it without borrowing.
+static TASKBAR_CREATED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// Runs `f` on the window state, or does nothing if the state is already in
+/// use. Windows sends messages to our window *during* calls like SetParent and
+/// SetWindowPos that we make while holding the state; those nested messages
+/// must not borrow it again (that panicked, and a panic in a window procedure
+/// aborts the process).
 fn with_state<R>(f: impl FnOnce(&mut State) -> R) -> Option<R> {
-    STATE.with(|s| s.borrow_mut().as_mut().map(f))
+    STATE.with(|s| match s.try_borrow_mut() {
+        Ok(mut guard) => guard.as_mut().map(f),
+        Err(_) => None,
+    })
 }
 
 pub fn shell_open(url: &str) {
@@ -96,7 +107,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let instance = GetModuleHandleW(None).unwrap_or_default();
-        let class = w!("BarkitHostWidget");
+        let class = w!("PillKitHostWidget");
         let wc = WNDCLASSW {
             lpfnWndProc: Some(wndproc),
             hInstance: instance.into(),
@@ -108,7 +119,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
         let hwnd = match CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
             class,
-            w!("barkit"),
+            w!("pillkit"),
             WS_POPUP,
             0,
             0,
@@ -126,7 +137,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             }
         };
 
-        let forced = match std::env::var("BARKIT_WIN_MODE").as_deref() {
+        let forced = match std::env::var("PILLKIT_WIN_MODE").as_deref() {
             Ok("embedded") => Some(Mode::Embedded),
             Ok("overlay") => Some(Mode::Overlay),
             Ok("tray") => Some(Mode::Tray),
@@ -141,12 +152,15 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             forced,
             display: None,
             rendered: None,
-            taskbar_created: RegisterWindowMessageW(w!("TaskbarCreated")),
             tray_added: false,
             ticks: 0,
             win10_shrunk: None,
             last_placed: None,
         };
+        TASKBAR_CREATED.store(
+            RegisterWindowMessageW(w!("TaskbarCreated")),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         STATE.with(|s| *s.borrow_mut() = Some(state));
         SetTimer(hwnd, TIMER_POLL, 250, None);
 
@@ -193,7 +207,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
         }
         _ => {
             // Explorer restarted: the old taskbar (and our parent) is gone.
-            if with_state(|s| msg == s.taskbar_created).unwrap_or(false) {
+            let created = TASKBAR_CREATED.load(std::sync::atomic::Ordering::Relaxed);
+            if created != 0 && msg == created {
                 log("taskbar was recreated; re-attaching");
                 with_state(|s| {
                     s.tray_added = false;
@@ -490,7 +505,7 @@ fn layout(s: &mut State) {
                 scale,
                 max_width_pt: 480.0,
                 fixed_width_pt: Some(
-                    barkit_core::render::slot_width_override().unwrap_or(SLOT_WIDTH_PT),
+                    pillkit_core::render::slot_width_override().unwrap_or(SLOT_WIDTH_PT),
                 ),
             },
         )));
