@@ -127,7 +127,7 @@ bar.on("callback", (e) => openBuildWindow(e.item_id));</code></pre>
     </table>
 
     <h2 id="macos">macOS</h2>
-    <p>A menu bar item to the left of the system icons. The pill is as tall as the menu bar allows (about 29 pt on a 33 pt bar). If macOS has no room beside the notch, the host steps down to a narrower width automatically. The host starts at login through a LaunchAgent, which appears in System Settings › General › Login Items.</p>
+    <p>A menu bar item to the left of the system icons, as tall as the menu bar allows (about 29 pt on a 33 pt bar). When the menu bar is full, macOS hides items that don't fit, especially beside the notch, so Pill Kit steps down through the same sizes as on Windows: full, shorter, compact (icon and title) and icon only. Every 10 minutes it tries full size again. Hovering for half a second, or right-clicking, opens the card. The host starts at login through a LaunchAgent, which appears in System Settings › General › Login Items.</p>
 
     <h2 id="windows">Windows</h2>
     <p>Windows has no public API for the taskbar, so the host tries three modes in order:</p>
@@ -145,8 +145,9 @@ bar.on("callback", (e) => openBuildWindow(e.item_id));</code></pre>
       <tr><td>Icon only</td><td>Your icon in a square</td><td>Very crowded</td></tr>
       <tr><td>Tray</td><td>Your icon in the notification area</td><td>No room at all (Windows 11 may tuck it behind <b>^</b>)</td></tr>
     </table>
-    <p>It re-checks every 2 seconds, so it steps aside as apps open and grows back as they close. The item editor's <b>Windows 11 taskbar</b> preview shows your item at each size. Because the compact and icon sizes can't fit everything, keep the <b>title short and recognisable</b> and use an icon people know.</p>
-    <p>Force a mode with <code>PILLKIT_WIN_MODE=embedded|overlay|tray</code>. No code is injected into Explorer, so antivirus stays quiet. The host starts at login from <code>HKCU\…\Run</code>; no admin rights needed. Right-click opens the menu (the hover card is coming to Windows).</p>
+    <p>It re-checks every 2 seconds, so it steps aside as apps open and grows back as they close. The item editor's previews (macOS menu bar and Windows 11 taskbar) show your item at each size with <b>Roomy / Busy / Crowded</b>. Because the compact and icon sizes can't fit everything, keep the <b>title short and recognisable</b> and use an icon people know.</p>
+    <p>Hovering for half a second, or right-clicking, opens the same card as on macOS, just above the pill, in Windows' light or dark style.</p>
+    <p>Force a mode with <code>PILLKIT_WIN_MODE=embedded|overlay|tray</code>. No code is injected into Explorer, so antivirus stays quiet. The host starts at login from <code>HKCU\…\Run</code>; no admin rights needed.</p>
 
     <h2 id="linux">Linux</h2>
     <p>Planned: a tray item for KDE, Mint and XFCE, and a GNOME Shell extension. The host already runs on Linux for development and logs what it would show.</p>

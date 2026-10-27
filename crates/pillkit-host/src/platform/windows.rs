@@ -17,7 +17,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
-use pillkit_core::render::{render, Fonts, Metrics, Rendered, SLOT_WIDTH_PT};
+use pillkit_core::render::{
+    render, render_card, CardContent, Fonts, Hit, Metrics, Rendered, SLOT_WIDTH_PT,
+};
 use windows::core::{w, HSTRING, PCWSTR};
 use windows::Win32::Foundation::{
     BOOL, COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM,
@@ -28,7 +30,9 @@ use windows::Win32::Graphics::Gdi::{
     DIB_RGB_COLORS,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
+use windows::Win32::System::Registry::{
+    RegGetValueW, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+};
 use windows::Win32::UI::HiDpi::{
     GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
@@ -40,10 +44,15 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 use super::{Display, MenuEntry, UiCmd, UiEvent};
-use crate::controller::Msg;
+use crate::controller::{Msg, MENU_HIDE, MENU_WHY};
 use crate::paths::log;
 
 const TIMER_POLL: usize = 1;
+const TICK_MS: u32 = 100;
+/// Placement is re-checked every this many ticks (2 s).
+const LAYOUT_EVERY: u32 = 20;
+const HOVER_OPEN_MS: u128 = 450;
+const HOVER_CLOSE_MS: u128 = 400;
 const WM_TRAY: u32 = WM_APP + 1;
 const MARGIN_PT: f32 = 4.0;
 
@@ -64,10 +73,12 @@ struct State {
     display: Option<Display>,
     rendered: Option<Rc<Rendered>>,
     rendered_width_pt: f32,
-    /// UI Automation, used to find where the taskbar's own items are.
-    uia: Option<windows::Win32::UI::Accessibility::IUIAutomation>,
-    /// Screen x-ranges taken by taskbar items, refreshed every 2 s.
-    occupied: Option<(std::time::Instant, Vec<(i32, i32)>)>,
+    /// The hover card: its window, click areas and screen rect while shown.
+    card_hwnd: HWND,
+    card_hits: Vec<Hit>,
+    card_rect: Option<RECT>,
+    hover_since: Option<std::time::Instant>,
+    outside_since: Option<std::time::Instant>,
     tray_added: bool,
     /// The tray fallback's icon, drawn from the current item (not a stock icon).
     tray_icon: Option<(String, HICON)>,
@@ -98,7 +109,14 @@ fn with_state<R>(f: impl FnOnce(&mut State) -> R) -> Option<R> {
 }
 
 pub fn shell_open(url: &str) {
-    unsafe {
+    // Its own thread with COM set up, as ShellExecute expects; whatever it
+    // waits on (the browser starting, Explorer) never touches the pill.
+    let url = url.to_string();
+    std::thread::spawn(move || unsafe {
+        let _ = windows::Win32::System::Com::CoInitializeEx(
+            None,
+            windows::Win32::System::Com::COINIT_APARTMENTTHREADED,
+        );
         ShellExecuteW(
             None,
             w!("open"),
@@ -107,7 +125,7 @@ pub fn shell_open(url: &str) {
             PCWSTR::null(),
             SW_SHOWNORMAL,
         );
-    }
+    });
 }
 
 pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
@@ -148,6 +166,31 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             }
         };
 
+        let card_class = w!("PillKitCard");
+        RegisterClassW(&WNDCLASSW {
+            lpfnWndProc: Some(card_wndproc),
+            hInstance: instance.into(),
+            lpszClassName: card_class,
+            hCursor: LoadCursorW(None, IDC_HAND).unwrap_or_default(),
+            ..Default::default()
+        });
+        let card_hwnd = CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
+            card_class,
+            w!("Pill Kit card"),
+            WS_POPUP,
+            0,
+            0,
+            1,
+            1,
+            None,
+            None,
+            instance,
+            None,
+        )
+        .unwrap_or_default();
+        start_taskbar_scanner();
+
         let forced = match std::env::var("PILLKIT_WIN_MODE").as_deref() {
             Ok("embedded") => Some(Mode::Embedded),
             Ok("overlay") => Some(Mode::Overlay),
@@ -164,8 +207,11 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             display: None,
             rendered: None,
             rendered_width_pt: 0.0,
-            uia: ui_automation(),
-            occupied: None,
+            card_hwnd,
+            card_hits: Vec::new(),
+            card_rect: None,
+            hover_since: None,
+            outside_since: None,
             tray_added: false,
             tray_icon: None,
             ticks: 0,
@@ -178,7 +224,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             std::sync::atomic::Ordering::Relaxed,
         );
         STATE.with(|s| *s.borrow_mut() = Some(state));
-        SetTimer(hwnd, TIMER_POLL, 250, None);
+        SetTimer(hwnd, TIMER_POLL, TICK_MS, None);
 
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).into() {
@@ -262,9 +308,13 @@ fn on_tick() {
         s.ticks = s.ticks.wrapping_add(1);
         // Re-check placement every 2 s: alignment, auto-hide, monitors and
         // Explorer's own relayouts can all move the free space.
-        if changed || s.ticks % 8 == 0 || s.mode == Mode::Overlay {
+        if changed || s.ticks % LAYOUT_EVERY == 0 || (s.mode == Mode::Overlay && s.ticks % 3 == 0) {
             layout(s);
+            if changed && s.card_rect.is_some() {
+                show_card(s); // keep an open card in step with the item
+            }
         }
+        track_hover(s);
         false
     })
     .unwrap_or(true);
@@ -280,11 +330,15 @@ fn on_click(right: bool) {
         return;
     };
     let Some(d) = display else { return };
+    let in_tray = with_state(|s| s.mode == Mode::Tray).unwrap_or(false);
     if right || d.click_opens_menu {
-        if let Some(id) = popup_menu(hwnd, &d.menu) {
-            let _ = events.send(Msg::Ui(UiEvent::Menu(id)));
+        if in_tray || with_state(show_card) != Some(true) {
+            if let Some(id) = popup_menu(hwnd, &d.menu) {
+                let _ = events.send(Msg::Ui(UiEvent::Menu(id)));
+            }
         }
     } else {
+        with_state(hide_card);
         let _ = events.send(Msg::Ui(UiEvent::Clicked));
     }
 }
@@ -380,16 +434,69 @@ fn fullscreen_app_running() -> bool {
     }
 }
 
-fn ui_automation() -> Option<windows::Win32::UI::Accessibility::IUIAutomation> {
-    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
-    use windows::Win32::UI::Accessibility::CUIAutomation;
-    let uia = unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) };
-    if let Err(e) = &uia {
-        log(format!(
-            "UI Automation unavailable ({e}); placement will be estimated"
-        ));
+/// What the background scanner last saw on the taskbar.
+enum Scan {
+    /// No result yet: keep the pill hidden rather than guess.
+    Pending,
+    /// UI Automation can't read the taskbar: placement is estimated.
+    Unavailable,
+    Ready(Vec<(i32, i32)>),
+}
+
+static SCAN: std::sync::Mutex<Scan> = std::sync::Mutex::new(Scan::Pending);
+
+/// Reads the taskbar's item positions every 1.5 s on its own thread.
+///
+/// This must never run on the window thread: our pill is a child of
+/// Explorer's taskbar, so Windows ties our input queue to Explorer's. A
+/// blocking cross-process UI Automation call from that thread can deadlock
+/// with Explorer (for example while it delivers a click to the pill) and
+/// freeze the whole desktop until it times out.
+fn start_taskbar_scanner() {
+    std::thread::spawn(|| unsafe {
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+        };
+        use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let uia: windows::core::Result<IUIAutomation> =
+            CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER);
+        let Ok(uia) = uia else {
+            log("UI Automation unavailable; placement will be estimated");
+            *SCAN.lock().unwrap_or_else(|e| e.into_inner()) = Scan::Unavailable;
+            return;
+        };
+        let mut failures = 0;
+        loop {
+            if let Some(tb) = find_taskbar() {
+                if let Some(r) = rect_of(tb) {
+                    let found = taskbar_items(&uia, tb, r);
+                    let mut scan = SCAN.lock().unwrap_or_else(|e| e.into_inner());
+                    match found {
+                        Some(v) => {
+                            failures = 0;
+                            *scan = Scan::Ready(v);
+                        }
+                        None => {
+                            failures += 1;
+                            if failures >= 3 && matches!(*scan, Scan::Pending) {
+                                log("UI Automation can't read the taskbar; placement will be estimated");
+                                *scan = Scan::Unavailable;
+                            }
+                        }
+                    }
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+        }
+    });
+}
+
+fn scan_items() -> Vec<(i32, i32)> {
+    match &*SCAN.lock().unwrap_or_else(|e| e.into_inner()) {
+        Scan::Ready(v) => v.clone(),
+        _ => Vec::new(),
     }
-    uia.ok()
 }
 
 /// Screen x-ranges of the taskbar's own items (Start, Search, app buttons,
@@ -454,16 +561,14 @@ fn taskbar_items(
     Some(merged)
 }
 
-fn occupied(s: &mut State, taskbar: HWND, tb: RECT) -> Option<Vec<(i32, i32)>> {
-    let fresh = s
-        .occupied
-        .as_ref()
-        .is_some_and(|(at, _)| at.elapsed() < std::time::Duration::from_secs(2));
-    if !fresh {
-        let items = s.uia.as_ref().and_then(|u| taskbar_items(u, taskbar, tb));
-        s.occupied = items.map(|v| (std::time::Instant::now(), v));
+/// Taskbar items from the scanner: Err while the first scan is pending,
+/// Ok(None) if UI Automation is unavailable.
+fn occupied() -> Result<Option<Vec<(i32, i32)>>, ()> {
+    match &*SCAN.lock().unwrap_or_else(|e| e.into_inner()) {
+        Scan::Pending => Err(()),
+        Scan::Unavailable => Ok(None),
+        Scan::Ready(v) => Ok(Some(v.clone())),
     }
-    s.occupied.as_ref().map(|(_, v)| v.clone())
 }
 
 /// Finds free space for a `w`x`h` pill, in screen coordinates, without
@@ -483,7 +588,7 @@ fn target_rect(s: &mut State, taskbar: HWND, w: i32, h: i32, scale: f32) -> Opti
         bottom: y + h,
     };
 
-    if let Some(mut items) = occupied(s, taskbar, tb) {
+    if let Ok(Some(mut items)) = occupied() {
         // Never treat our own pill as something in the way.
         if let Some(own) = rect_of(s.hwnd) {
             items.retain(|&(l, r)| (l - own.left).abs() > 2 || (r - own.right).abs() > 2);
@@ -603,18 +708,22 @@ fn layout(s: &mut State) {
     let bar_h = (tb.bottom - tb.top) as f32;
     let pill_h = (bar_h * 0.72).min(40.0 * scale).max(20.0 * scale).round() as u32;
 
+    // Until the scanner has looked at the taskbar, stay hidden rather than
+    // guess (a guess can land on Start or Search).
+    if s.mode != Mode::Tray && occupied().is_err() {
+        unsafe {
+            let _ = ShowWindow(s.hwnd, SW_HIDE);
+        }
+        return;
+    }
     // Full width first, then narrower, so the pill never covers anything.
     let full = pillkit_core::render::slot_width_override().unwrap_or(SLOT_WIDTH_PT);
     let mut placed = None;
     // Last steps: a compact one-line pill, then just the icon (a square).
     let icon_only = pill_h as f32 / scale;
-    for width_pt in [
-        full,
-        180.0_f32.min(full),
-        150.0_f32.min(full),
-        120.0_f32.min(full),
-        icon_only,
-    ] {
+    let mut sizes = pillkit_core::render::slot_widths(icon_only);
+    sizes[0] = full;
+    for width_pt in sizes.into_iter().map(|w| w.min(full)) {
         if s.rendered.as_ref().map(|r| r.height) != Some(pill_h) || s.rendered_width_pt != width_pt
         {
             let Some(fonts) = s.fonts.as_ref() else {
@@ -650,7 +759,7 @@ fn layout(s: &mut State) {
                 "no room on the taskbar ({}); using the tray. taskbar {:?}; items {:?}; scale {scale}",
                 s.placement_note,
                 (tb.left, tb.top, tb.right, tb.bottom),
-                s.occupied.as_ref().map(|(_, v)| v.clone()).unwrap_or_default()
+                scan_items()
             ));
         }
         s.mode = Mode::Tray;
@@ -665,7 +774,7 @@ fn layout(s: &mut State) {
         log(format!(
             "placing pill: mode {:?}, at ({}, {}) size {}x{}; {}; taskbar ({}, {})-({}, {}); items {:?}; scale {scale}; build {}",
             s.mode, target.left, target.top, w, h, s.placement_note, tb.left, tb.top, tb.right, tb.bottom,
-            s.occupied.as_ref().map(|(_, v)| v.clone()).unwrap_or_default(), windows_build()
+            scan_items(), windows_build()
         ));
         s.last_placed = Some((s.mode, target));
     }
@@ -926,5 +1035,151 @@ fn remove_tray(s: &mut State) {
             let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
         }
         s.tray_added = false;
+    }
+}
+
+// ---------------------------------------------------------------- hover card
+
+/// Windows' own light/dark setting for apps.
+fn dark_mode() -> bool {
+    let mut data = 1u32;
+    let mut size = 4u32;
+    let r = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            w!(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"),
+            w!("AppsUseLightTheme"),
+            RRF_RT_REG_DWORD,
+            None,
+            Some(&mut data as *mut u32 as *mut _),
+            Some(&mut size),
+        )
+    };
+    r.is_ok() && data == 0
+}
+
+/// Shows (or refreshes) the card above the pill. Returns false if there's
+/// nothing to show it for.
+fn show_card(s: &mut State) -> bool {
+    let (Some(d), Some(fonts)) = (s.display.as_ref(), s.fonts.as_ref()) else {
+        return false;
+    };
+    if s.mode == Mode::Tray || s.card_hwnd.is_invalid() {
+        return false;
+    }
+    let Some(pill) = rect_of(s.hwnd) else {
+        return false;
+    };
+    let scale = unsafe { GetDpiForWindow(s.hwnd) } as f32 / 96.0;
+    let scale = if scale > 0.0 { scale } else { 1.0 };
+    let content = CardContent {
+        label: d.card.label.clone(),
+        title: d.card.title.clone(),
+        body: d.card.body.clone(),
+        links: vec![(MENU_HIDE, "Hide".into()), (MENU_WHY, "Why this?".into())],
+        buttons: d.card.buttons.clone(),
+    };
+    let (r, hits) = render_card(&content, fonts, scale, dark_mode());
+    let (w, h) = (r.width as i32, r.height as i32);
+
+    // Above the pill (below it if the taskbar is at the top), on screen.
+    let tb = find_taskbar().and_then(rect_of).unwrap_or(pill);
+    let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
+    let x = (pill.left + (pill.right - pill.left) / 2 - w / 2).clamp(0, (screen_w - w).max(0));
+    let y = if tb.top > 0 { tb.top - h } else { tb.bottom };
+    if !blit(s.card_hwnd, &r, POINT { x, y }, false) {
+        return false;
+    }
+    unsafe {
+        let _ = SetWindowPos(
+            s.card_hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+        let _ = ShowWindow(s.card_hwnd, SW_SHOWNOACTIVATE);
+    }
+    s.card_hits = hits;
+    s.card_rect = Some(RECT {
+        left: x,
+        top: y,
+        right: x + w,
+        bottom: y + h,
+    });
+    s.outside_since = None;
+    true
+}
+
+fn hide_card(s: &mut State) {
+    if s.card_rect.take().is_some() {
+        unsafe {
+            let _ = ShowWindow(s.card_hwnd, SW_HIDE);
+        }
+    }
+    s.card_hits.clear();
+    s.hover_since = None;
+    s.outside_since = None;
+}
+
+/// Opens the card after a short hover on the pill and closes it once the
+/// pointer has left both the pill and the card for a moment.
+fn track_hover(s: &mut State) {
+    if s.display.is_none() || s.mode == Mode::Tray {
+        hide_card(s);
+        return;
+    }
+    let mut pt = POINT::default();
+    if unsafe { GetCursorPos(&mut pt) }.is_err() {
+        return;
+    }
+    let inside = |r: RECT| pt.x >= r.left && pt.x < r.right && pt.y >= r.top && pt.y < r.bottom;
+    let pill_visible = unsafe { IsWindowVisible(s.hwnd) }.as_bool();
+    let on_pill = pill_visible && rect_of(s.hwnd).is_some_and(inside);
+    let on_card = s.card_rect.is_some_and(inside);
+    let now = std::time::Instant::now();
+    if on_pill || on_card {
+        s.outside_since = None;
+    }
+    if s.card_rect.is_none() {
+        if on_pill {
+            let since = *s.hover_since.get_or_insert(now);
+            if since.elapsed().as_millis() >= HOVER_OPEN_MS {
+                show_card(s);
+            }
+        } else {
+            s.hover_since = None;
+        }
+    } else if !on_pill && !on_card {
+        let since = *s.outside_since.get_or_insert(now);
+        if since.elapsed().as_millis() >= HOVER_CLOSE_MS {
+            hide_card(s);
+        }
+    }
+}
+
+unsafe extern "system" fn card_wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    match msg {
+        // Clicking the card must not steal focus from the user's window.
+        WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
+        WM_LBUTTONUP => {
+            let x = (lp.0 & 0xFFFF) as i16 as f32;
+            let y = ((lp.0 >> 16) & 0xFFFF) as i16 as f32;
+            let hit = with_state(|s| {
+                let id = s.card_hits.iter().find(|h| h.contains(x, y)).map(|h| h.id);
+                if id.is_some() {
+                    hide_card(s);
+                }
+                id.map(|id| (id, s.events.clone()))
+            })
+            .flatten();
+            if let Some((id, events)) = hit {
+                let _ = events.send(Msg::Ui(UiEvent::Menu(id)));
+            }
+            LRESULT(0)
+        }
+        _ => DefWindowProcW(hwnd, msg, wp, lp),
     }
 }

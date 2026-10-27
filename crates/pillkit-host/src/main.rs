@@ -5,6 +5,7 @@
 //!   pillkit-host install          copy into the data dir and start at login
 //!   pillkit-host uninstall        remove the login entry, binary and app cache
 //!   pillkit-host render IN OUT    render an item JSON file to a PNG (design preview)
+//!   pillkit-host render-card OUT  render the hover card to a PNG (design preview)
 //!   pillkit-host --version
 
 // Release builds on Windows have no console window (the host starts at login).
@@ -29,6 +30,7 @@ fn main() {
         }
         Some("uninstall") => exit_on_err(autostart::uninstall()),
         Some("render") if args.len() == 3 => exit_on_err(render(&args[1], &args[2])),
+        Some("render-card") if args.len() == 2 => exit_on_err(render_card(&args[1])),
         Some("preview") => preview::run(),
         // The preview build is the same binary under another name, so a
         // double-click (no arguments) on pillkit-preview.exe opens the preview.
@@ -74,6 +76,21 @@ fn render(input: &str, output: &str) -> std::io::Result<()> {
             ),
         },
     );
+    std::fs::write(output, r.to_png())
+}
+
+/// Design preview of the hover card (as drawn on Windows).
+fn render_card(output: &str) -> std::io::Result<()> {
+    use pillkit_core::render::{render_card, CardContent, Fonts};
+    let fonts = Fonts::system().ok_or_else(|| std::io::Error::other("no system font found"))?;
+    let card = CardContent {
+        label: "Sponsored".into(),
+        title: "Acme Cloud".into(),
+        body: "Deploy any repo in 30 seconds. First month free.".into(),
+        links: vec![(1, "Hide".into()), (2, "Why this?".into())],
+        buttons: vec![(3, "Open site".into())],
+    };
+    let (r, _) = render_card(&card, &fonts, 2.0, false);
     std::fs::write(output, r.to_png())
 }
 

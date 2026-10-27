@@ -71,9 +71,17 @@ pub struct Metrics {
 /// Matches Sponsorbar's pill width. Wider slots are a later decision.
 pub const SLOT_WIDTH_PT: f32 = 224.0;
 
-/// Widths to step down through, widest first, when the OS has no room for the
-/// full slot (macOS hides status items that don't fit beside the notch).
-pub const SLOT_WIDTHS_PT: [f32; 4] = [SLOT_WIDTH_PT, 200.0, 180.0, 160.0];
+/// The sizes a pill steps down through when the bar is crowded, largest
+/// first: full, shorter, compact (icon + title) and icon only (a square as
+/// tall as the pill). Shared by macOS and Windows so both behave the same.
+pub fn slot_widths(height_pt: f32) -> [f32; 5] {
+    [SLOT_WIDTH_PT, 180.0, 150.0, 120.0, height_pt]
+}
+
+/// Human-readable name of a step, for logs.
+pub fn slot_name(step: usize) -> &'static str {
+    ["full", "180 pt", "150 pt", "compact", "icon only"][step.min(4)]
+}
 
 /// `PILLKIT_SLOT_WIDTH=280` pins the width, for trying sizes while designing.
 pub fn slot_width_override() -> Option<f32> {
@@ -528,5 +536,294 @@ mod tests {
             },
         );
         assert!(r.width <= 200);
+    }
+}
+
+/// What goes in the hover card (the same card macOS shows natively).
+#[derive(Debug, Clone, Default)]
+pub struct CardContent {
+    /// "Sponsored", "Ad", or empty for status items.
+    pub label: String,
+    pub title: String,
+    pub body: String,
+    /// Small links at the top right, e.g. (id, "Hide"), (id, "Why this?").
+    pub links: Vec<(u32, String)>,
+    /// Buttons; the first is drawn as the primary one.
+    pub buttons: Vec<(u32, String)>,
+}
+
+/// A clickable area of a rendered card, in physical pixels from its top left.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Hit {
+    pub id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl Hit {
+    pub fn contains(&self, x: f32, y: f32) -> bool {
+        x >= self.x && x <= self.x + self.w && y >= self.y && y <= self.y + self.h
+    }
+}
+
+/// Draws the hover card at `scale` (physical pixels per point), 300 pt wide,
+/// light theme, with a soft shadow. Returns the bitmap and its hit areas.
+pub fn render_card(c: &CardContent, fonts: &Fonts, scale: f32, dark: bool) -> (Rendered, Vec<Hit>) {
+    let s = scale;
+    let shadow = (10.0 * s).round();
+    let width = 300.0 * s;
+    let pad = 14.0 * s;
+    let inner = width - pad * 2.0;
+    let (bg, fg, muted, border) = if dark {
+        (
+            [0x2A, 0x2A, 0x2C],
+            [0xF2, 0xF2, 0xF7],
+            [0xA1, 0xA1, 0xA6],
+            [0x45, 0x45, 0x48],
+        )
+    } else {
+        (
+            [0xF6, 0xF6, 0xF8],
+            [0x1D, 0x1D, 0x1F],
+            [0x6E, 0x6E, 0x73],
+            [0xD8, 0xD8, 0xDC],
+        )
+    };
+    let accent = [0x25, 0x63, 0xEB];
+    let (small, title_px, body_px, btn_px) = (12.0 * s, 15.0 * s, 13.0 * s, 13.0 * s);
+
+    // Lay out top-down first to know the height.
+    let mut y = pad;
+    let header_y = y;
+    y += small * 1.3 + 8.0 * s;
+    let title_y = y;
+    y += title_px * 1.3 + 3.0 * s;
+    let body_lines = wrap(&fonts.regular, body_px, &c.body, inner, 4);
+    let body_y = y;
+    y += body_lines.len() as f32 * body_px * 1.35;
+    if !body_lines.is_empty() {
+        y += 10.0 * s;
+    }
+    let btn_h = 28.0 * s;
+    let btn_y = y;
+    if !c.buttons.is_empty() {
+        y += btn_h;
+    }
+    let card_h = (y + pad).ceil();
+
+    let total_w = (width + shadow * 2.0).ceil() as u32;
+    let total_h = (card_h + shadow * 2.0).ceil() as u32;
+    let mut p = Pixmap::new(total_w, total_h).expect("non-zero size");
+    // Soft shadow: a few widening, fading rounded rects.
+    for i in (1..=4).rev() {
+        let grow = i as f32 * shadow / 4.0;
+        rounded_rect(
+            &mut p,
+            shadow - grow,
+            shadow - grow + 2.0 * s,
+            width + grow * 2.0,
+            card_h + grow * 2.0,
+            12.0 * s + grow,
+            Color::from_rgba8(0, 0, 0, (14 - i * 3) as u8),
+        );
+    }
+    let (ox, oy) = (shadow, shadow);
+    rounded_rect(&mut p, ox, oy, width, card_h, 12.0 * s, rgba(border, 255));
+    rounded_rect(
+        &mut p,
+        ox + s * 0.75,
+        oy + s * 0.75,
+        width - s * 1.5,
+        card_h - s * 1.5,
+        11.5 * s,
+        rgba(bg, 255),
+    );
+
+    let mut hits = Vec::new();
+    let base = |line_top: f32, px: f32| oy + line_top + px * 0.95;
+    if !c.label.is_empty() {
+        draw_text(
+            &mut p,
+            &fonts.regular,
+            small,
+            &c.label,
+            ox + pad,
+            base(header_y, small),
+            muted,
+            255,
+        );
+    }
+    // Links, right-aligned: "Hide · Why this?"
+    let mut x = ox + width - pad;
+    for (i, (id, text)) in c.links.iter().enumerate().rev() {
+        let w = measure(&fonts.regular, small, text);
+        x -= w;
+        draw_text(
+            &mut p,
+            &fonts.regular,
+            small,
+            text,
+            x,
+            base(header_y, small),
+            muted,
+            255,
+        );
+        hits.push(Hit {
+            id: *id,
+            x: x - 3.0 * s,
+            y: oy + header_y - 3.0 * s,
+            w: w + 6.0 * s,
+            h: small * 1.3 + 6.0 * s,
+        });
+        if i > 0 {
+            let dot = " · ";
+            x -= measure(&fonts.regular, small, dot);
+            draw_text(
+                &mut p,
+                &fonts.regular,
+                small,
+                dot,
+                x,
+                base(header_y, small),
+                muted,
+                255,
+            );
+        }
+    }
+    let title = fit(&fonts.bold, title_px, &c.title, inner);
+    draw_text(
+        &mut p,
+        &fonts.bold,
+        title_px,
+        &title,
+        ox + pad,
+        base(title_y, title_px),
+        fg,
+        255,
+    );
+    for (i, line) in body_lines.iter().enumerate() {
+        let top = body_y + i as f32 * body_px * 1.35;
+        draw_text(
+            &mut p,
+            &fonts.regular,
+            body_px,
+            line,
+            ox + pad,
+            base(top, body_px),
+            fg,
+            255,
+        );
+    }
+    let mut bx = ox + pad;
+    for (i, (id, text)) in c.buttons.iter().take(3).enumerate() {
+        let tw = measure(&fonts.regular, btn_px, text);
+        let bw = (tw + 28.0 * s).max(80.0 * s);
+        let by = oy + btn_y;
+        if i == 0 {
+            rounded_rect(&mut p, bx, by, bw, btn_h, 6.0 * s, rgba(accent, 255));
+            draw_text(
+                &mut p,
+                &fonts.bold,
+                btn_px,
+                text,
+                bx + (bw - tw) / 2.0,
+                by + btn_h / 2.0 + btn_px * 0.36,
+                [255, 255, 255],
+                255,
+            );
+        } else {
+            rounded_rect(&mut p, bx, by, bw, btn_h, 6.0 * s, rgba(border, 255));
+            rounded_rect(
+                &mut p,
+                bx + s,
+                by + s,
+                bw - 2.0 * s,
+                btn_h - 2.0 * s,
+                5.0 * s,
+                rgba(bg, 255),
+            );
+            draw_text(
+                &mut p,
+                &fonts.regular,
+                btn_px,
+                text,
+                bx + (bw - tw) / 2.0,
+                by + btn_h / 2.0 + btn_px * 0.36,
+                fg,
+                255,
+            );
+        }
+        hits.push(Hit {
+            id: *id,
+            x: bx,
+            y: by,
+            w: bw,
+            h: btn_h,
+        });
+        bx += bw + 8.0 * s;
+    }
+
+    (
+        Rendered {
+            width: total_w,
+            height: total_h,
+            pixmap: p,
+        },
+        hits,
+    )
+}
+
+/// Greedy word wrap into at most `max_lines` lines of `max` pixels.
+fn wrap(font: &Font, px: f32, text: &str, max: f32, max_lines: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        let candidate = if line.is_empty() {
+            word.to_string()
+        } else {
+            format!("{line} {word}")
+        };
+        if measure(font, px, &candidate) <= max || line.is_empty() {
+            line = candidate;
+        } else {
+            lines.push(std::mem::take(&mut line));
+            line = word.to_string();
+        }
+    }
+    if !line.is_empty() {
+        lines.push(line);
+    }
+    if lines.len() > max_lines {
+        lines.truncate(max_lines);
+        let last = lines.pop().unwrap_or_default();
+        lines.push(fit(font, px, &(last + "…"), max));
+    }
+    lines.into_iter().map(|l| fit(font, px, &l, max)).collect()
+}
+
+#[cfg(test)]
+mod card_tests {
+    use super::*;
+
+    #[test]
+    fn card_has_hit_areas_for_links_and_buttons() {
+        let Some(fonts) = Fonts::system() else { return };
+        let c = CardContent {
+            label: "Sponsored".into(),
+            title: "Acme Cloud".into(),
+            body:
+                "Deploy any repo in 30 seconds. First month free, no card needed, cancel any time."
+                    .into(),
+            links: vec![(1, "Hide".into()), (2, "Why this?".into())],
+            buttons: vec![(3, "Open site".into())],
+        };
+        let (r, hits) = render_card(&c, &fonts, 1.0, false);
+        assert!(r.width >= 300 && r.height > 100, "{}x{}", r.width, r.height);
+        let ids: Vec<u32> = hits.iter().map(|h| h.id).collect();
+        assert!(ids.contains(&1) && ids.contains(&2) && ids.contains(&3));
+        let open = hits.iter().find(|h| h.id == 3).unwrap();
+        assert!(open.contains(open.x + 2.0, open.y + 2.0));
     }
 }

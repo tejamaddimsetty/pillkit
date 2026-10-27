@@ -363,3 +363,15 @@ dl.faq dd { margin: 4px 0 0; color: var(--muted); }
 .win-fit::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 60px; background: linear-gradient(90deg, rgba(243,243,243,0), #f3f3f3); pointer-events: none; }
 .win-bar { justify-content: flex-start; }
 .win-bar .grow:first-of-type { flex: 0 0 18px; }
+
+/* ---- editor: macOS menu bar sizes (Roomy / Busy / Crowded) ---- */
+.m-bar { position: relative; }
+.m-notch { position: absolute; left: 50%; top: 0; width: 120px; height: 26px; margin-left: -60px; background: #0b0b0b; border-radius: 0 0 10px 10px; }
+.m-icons { display: flex; gap: 9px; align-items: center; flex: none; }
+.m-icons i { width: 13px; height: 13px; border-radius: 3px; background: #2b2b2b; opacity: .75; }
+.mac-pill.compact { width: 120px; }
+.mac-pill.compact small, .mac-pill.compact em { display: none !important; }
+.mac-pill.iconly { width: 29px; padding: 0; justify-content: center; }
+.mac-pill.iconly .txt, .mac-pill.iconly em { display: none !important; }
+.m-notch { position: static; flex: none; width: 96px; height: 33px; margin: 0 4px 0 0; align-self: flex-start; border-radius: 0 0 10px 10px; left: auto; }
+.m-bar { overflow: hidden; }

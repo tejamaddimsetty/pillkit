@@ -4,7 +4,24 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
-## [Unreleased]
+## [0.2.3] - 2026-10-27
+
+### Fixed
+- Windows: clicking the pill could freeze the desktop for a while. The pill
+  window is a child of Explorer's taskbar, so its thread shares Explorer's
+  input queue, and it was making blocking UI Automation calls into Explorer
+  every 2 s; a click arriving mid-call deadlocked the two. Taskbar scanning
+  now runs on its own thread (the pill stays hidden until the first scan
+  instead of guessing), and links open from a separate thread.
+
+### Added
+- Windows: the hover card (label, Hide · Why this?, title, text, buttons),
+  drawn by the shared renderer, opening on hover or right-click, following
+  Windows' light/dark setting.
+- macOS: the same size steps as Windows (full -> compact -> icon only), and it
+  tries full size again every 10 minutes.
+- Item editor: the Roomy / Busy / Crowded switch now drives both the macOS
+  menu bar and the Windows 11 taskbar previews.
 
 ### Changed
 - Links in items are accepted as typed: "stacks.ltd" and "http://..." become

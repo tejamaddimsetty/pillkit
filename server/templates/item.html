@@ -118,11 +118,12 @@
 
     <div class="pv-stage" data-view="mac">
       <div class="dev mac">
-        <div class="mac-bar">
+        <div class="mac-bar m-bar">
           <span class="apple"></span><b>Finder</b><span>File</span><span>Edit</span><span>View</span>
           <span class="grow"></span>
-          <span class="slot pv-pill"></span>
-          <span class="mac-icons"></span><span>9:41</span>
+          <span class="m-notch" hidden></span>
+          <span class="slot pv-pill mac-pill"></span>
+          <span class="m-icons"></span><span>9:41</span>
         </div>
         <div class="mac-desk"></div>
       </div>
@@ -157,16 +158,15 @@
           <span class="w-clock">18:27<br>26-10-2026</span>
         </div></div>
       </div>
-      <div class="win-modes" role="group" aria-label="Windows taskbar examples">
-        <button type="button" data-mode="roomy">Roomy</button>
-        <button type="button" data-mode="busy" class="on">Busy</button>
-        <button type="button" data-mode="crowded">Crowded</button>
-      </div>
-      <p class="muted win-note" id="win-note"></p>
     </div>
 
+    <div class="win-modes size-modes" role="group" aria-label="How the pill adapts to a busy bar">
+      <button type="button" data-mode="roomy">Roomy</button>
+      <button type="button" data-mode="busy" class="on">Busy</button>
+      <button type="button" data-mode="crowded">Crowded</button>
+    </div>
+    <p class="muted win-note" id="size-note"></p>
     <div class="pv-dots"><i class="on"></i><i></i><i></i></div>
-    <p class="muted pv-note">Real size. Every item uses the same 224 × 29 pt slot.</p>
   </aside>
 </form>
 
@@ -272,28 +272,43 @@
   });
 
   // Preview carousel: menu bar → hover card → Windows taskbar.
-  // Windows 11: the host measures the free space on the taskbar and uses the
-  // largest size that fits, so it never covers Start, Search or app icons.
-  const WIN = {
-    roomy: { apps: 4, weather: false, size: "", note: "Plenty of room: the full pill, with subtitle and label." },
-    busy: { apps: 9, weather: true, size: "compact", note: "Busy taskbar (weather + many apps): a compact pill with the icon and title. The label shows on hover." },
-    crowded: { apps: 13, weather: true, size: "iconly", note: "Very crowded: just the icon. If even that won't fit, Pill Kit falls back to a tray icon." },
+  // On both systems the host uses the largest size that fits, so the pill
+  // never covers anything: full → compact (icon + title) → icon only.
+  const MODES = {
+    roomy: { size: "", apps: 4, weather: false, mac: 3, notch: false,
+      mac_note: "Plenty of room in the menu bar: the full pill, with subtitle and label.",
+      win_note: "Plenty of room on the taskbar: the full pill, with subtitle and label." },
+    busy: { size: "compact", apps: 9, weather: true, mac: 5, notch: false,
+      mac_note: "Many menu bar icons: a compact pill with the icon and title. The label shows on hover.",
+      win_note: "Weather widget plus many apps: a compact pill with the icon and title. The label shows on hover." },
+    crowded: { size: "iconly", apps: 13, weather: true, mac: 6, notch: true,
+      mac_note: "A Mac with a notch and a full menu bar: just the icon. macOS hides items that don't fit, so Pill Kit shrinks first.",
+      win_note: "Very crowded: just the icon. If even that won't fit, Pill Kit falls back to a tray icon." },
   };
   const COLORS = ["#ffb900", "#0078d4", "#4285f4", "#db4437", "#0f9d58", "#25d366", "#2b2b2b", "#8a2be2", "#ff5722", "#009688"];
-  function winMode(mode) {
-    const m = WIN[mode];
-    const bar = $(".win-bar");
-    bar.dataset.mode = mode;
-    $(".w-weather").hidden = !m.weather;
-    const pill = $(".win-pill");
-    pill.classList.remove("compact", "iconly");
-    if (m.size) pill.classList.add(m.size);
-    $(".w-apps").innerHTML = Array.from({ length: m.apps }, (_, i) => `<i style="background:${COLORS[i % COLORS.length]}"></i>`).join("");
-    $("#win-note").textContent = m.note + " Pill Kit picks the size automatically and re-checks as apps open and close.";
-    $$(".win-modes button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+  let mode = "busy";
+  function setMode(m) {
+    mode = m;
+    const c = MODES[m];
+    $(".w-weather").hidden = !c.weather;
+    $(".w-apps").innerHTML = Array.from({ length: c.apps }, (_, i) => `<i style="background:${COLORS[i % COLORS.length]}"></i>`).join("");
+    $(".m-icons").innerHTML = Array.from({ length: c.mac }, () => "<i></i>").join("");
+    $(".m-notch").hidden = !c.notch;
+    $$(".win-pill, .mac-pill").forEach((p) => {
+      p.classList.remove("compact", "iconly");
+      if (c.size) p.classList.add(c.size);
+    });
+    $$(".size-modes button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+    note();
   }
-  $$(".win-modes button").forEach((b) => b.addEventListener("click", () => winMode(b.dataset.mode)));
-  winMode("busy");
+  function note() {
+    const view = views[at][0];
+    $("#size-note").textContent = view === "card"
+      ? "Opens after a short hover or on right-click, on macOS and Windows."
+      : MODES[mode][view === "win" ? "win_note" : "mac_note"] + " Pill Kit picks the size automatically.";
+    $(".size-modes").hidden = view === "card";
+  }
+  $$(".size-modes button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
   // The taskbar is drawn at real size and scaled down to fit the preview.
   function fitWin() {
     const box = $(".win-fit"), bar = $(".win-bar");
@@ -311,7 +326,7 @@
     at = (i + views.length) % views.length;
     $$(".pv-stage").forEach((s) => (s.hidden = s.dataset.view !== views[at][0]));
     $("#pv-name").textContent = views[at][1];
-    $(".pv-note").hidden = views[at][0] === "win";
+    note();
     if (views[at][0] === "win") requestAnimationFrame(fitWin);
     $$(".pv-dots i").forEach((d, j) => d.classList.toggle("on", j === at));
   }
@@ -323,6 +338,7 @@
   f.addEventListener("input", update);
   f.addEventListener("change", update);
   update();
+  setMode("busy");
 })();
 </script>
 {% endblock %}

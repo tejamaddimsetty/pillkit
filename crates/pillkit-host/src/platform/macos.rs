@@ -22,7 +22,7 @@ use objc2_app_kit::{
 use objc2_foundation::{
     CGFloat, MainThreadMarker, NSData, NSPoint, NSRect, NSSize, NSString, NSTimer,
 };
-use pillkit_core::render::{render, slot_width_override, Fonts, Metrics, SLOT_WIDTHS_PT};
+use pillkit_core::render::{render, slot_name, slot_width_override, slot_widths, Fonts, Metrics};
 
 use super::{CardView, Display, UiCmd, UiEvent};
 use crate::controller::{Msg, MENU_HIDE, MENU_WHY};
@@ -42,8 +42,10 @@ pub struct Ivars {
     card: RefCell<Option<Retained<NSPanel>>>,
     hover_since: Cell<Option<Instant>>,
     outside_since: Cell<Option<Instant>>,
-    /// Index into SLOT_WIDTHS_PT; steps down if macOS has no room for us.
+    /// Index into slot_widths(); steps down if macOS has no room for us.
     width_step: Cell<usize>,
+    /// When we last stepped down; after a while we try full size again.
+    stepped_down_at: Cell<Option<Instant>>,
     misses: Cell<u8>,
     shown_at: Cell<Option<Instant>>,
 }
@@ -167,7 +169,7 @@ impl Delegate {
                 height: (height_pt * scale).round() as u32,
                 scale,
                 max_width_pt: 480.0,
-                fixed_width_pt: Some(self.slot_width()),
+                fixed_width_pt: Some(self.slot_width(height_pt)),
             },
         );
 
@@ -234,9 +236,20 @@ impl Delegate {
         }
     }
 
-    fn slot_width(&self) -> f32 {
+    fn slot_width(&self, height_pt: f32) -> f32 {
+        // macOS can't tell us whether a wider item would fit, so every 10
+        // minutes try full size again; check_fits steps back down if not.
+        if self
+            .ivars()
+            .stepped_down_at
+            .get()
+            .is_some_and(|t| t.elapsed() > Duration::from_secs(600))
+        {
+            self.ivars().width_step.set(0);
+            self.ivars().stepped_down_at.set(None);
+        }
         slot_width_override()
-            .unwrap_or(SLOT_WIDTHS_PT[self.ivars().width_step.get().min(SLOT_WIDTHS_PT.len() - 1)])
+            .unwrap_or(slot_widths(height_pt)[self.ivars().width_step.get().min(4)])
     }
 
     /// macOS quietly hides status items that don't fit beside the notch.
@@ -294,16 +307,17 @@ impl Delegate {
         // doesn't cost us width.
         let misses = self.ivars().misses.get() + 1;
         let step = self.ivars().width_step.get();
-        if misses < 2 || step + 1 >= SLOT_WIDTHS_PT.len() {
+        if misses < 2 || step + 1 >= 5 {
             self.ivars().misses.set(misses);
             return recheck();
         }
         self.ivars().misses.set(0);
         self.ivars().width_step.set(step + 1);
+        self.ivars().stepped_down_at.set(Some(Instant::now()));
         log(format!(
-            "menu bar has no room for {} pt; trying {} pt",
-            SLOT_WIDTHS_PT[step],
-            SLOT_WIDTHS_PT[step + 1]
+            "menu bar has no room for the {} pill; trying {}",
+            slot_name(step),
+            slot_name(step + 1)
         ));
         if let Some(d) = self.ivars().display.borrow().clone() {
             self.show(d);
@@ -620,6 +634,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             hover_since: Cell::new(None),
             outside_since: Cell::new(None),
             width_step: Cell::new(0),
+            stepped_down_at: Cell::new(None),
             misses: Cell::new(0),
             shown_at: Cell::new(None),
         },
