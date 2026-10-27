@@ -120,8 +120,8 @@ if (-not $HostExe) {
     } catch {
       if (Get-Command cargo -ErrorAction SilentlyContinue) {
         Write-Host "  No release download available; building from source with cargo..."
-        Push-Location $Root; cargo build -p pillkit-host; Pop-Location
-        Copy-Item -Force (Join-Path $Root "target\debug\pillkit-host.exe") $HostExe
+        Push-Location $Root; cargo build --release -p pillkit-host --features dev-keys; Pop-Location
+        Copy-Item -Force (Join-Path $Root "target\release\pillkit-host.exe") $HostExe
       } else {
         Fail "Couldn't download the host ($($_.Exception.Message)). Check your internet connection, or install Rust (https://rustup.rs) and run again."
       }

@@ -48,9 +48,9 @@ use crate::controller::{Msg, MENU_HIDE, MENU_WHY};
 use crate::paths::log;
 
 const TIMER_POLL: usize = 1;
-const TICK_MS: u32 = 100;
+const TICK_MS: u32 = 200;
 /// Placement is re-checked every this many ticks (2 s).
-const LAYOUT_EVERY: u32 = 20;
+const LAYOUT_EVERY: u32 = 10;
 const HOVER_OPEN_MS: u128 = 450;
 const HOVER_CLOSE_MS: u128 = 400;
 const WM_TRAY: u32 = WM_APP + 1;
@@ -85,6 +85,8 @@ struct State {
     ticks: u32,
     win10_shrunk: Option<(HWND, i32)>,
     last_placed: Option<(Mode, RECT)>,
+    /// What the window last showed (bitmap and position), to skip redraws.
+    last_blit: Option<(usize, i32, i32)>,
     placement_note: &'static str,
 }
 
@@ -217,6 +219,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
             ticks: 0,
             win10_shrunk: None,
             last_placed: None,
+            last_blit: None,
             placement_note: "",
         };
         TASKBAR_CREATED.store(
@@ -277,6 +280,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                     s.win10_shrunk = None;
                     s.mode = s.forced.unwrap_or(Mode::Embedded);
                     s.rendered = None;
+                    s.last_blit = None;
                     layout(s);
                 });
                 return LRESULT(0);
@@ -308,7 +312,7 @@ fn on_tick() {
         s.ticks = s.ticks.wrapping_add(1);
         // Re-check placement every 2 s: alignment, auto-hide, monitors and
         // Explorer's own relayouts can all move the free space.
-        if changed || s.ticks % LAYOUT_EVERY == 0 || (s.mode == Mode::Overlay && s.ticks % 3 == 0) {
+        if changed || s.ticks % LAYOUT_EVERY == 0 || (s.mode == Mode::Overlay && s.ticks % 2 == 0) {
             layout(s);
             if changed && s.card_rect.is_some() {
                 show_card(s); // keep an open card in step with the item
@@ -330,7 +334,7 @@ fn on_click(right: bool) {
         return;
     };
     let Some(d) = display else { return };
-    let in_tray = with_state(|s| s.mode == Mode::Tray).unwrap_or(false);
+    let in_tray = with_state(|s| s.mode == Mode::Tray || s.tray_added).unwrap_or(false);
     if right || d.click_opens_menu {
         if in_tray || with_state(show_card) != Some(true) {
             if let Some(id) = popup_menu(hwnd, &d.menu) {
@@ -444,6 +448,8 @@ enum Scan {
 }
 
 static SCAN: std::sync::Mutex<Scan> = std::sync::Mutex::new(Scan::Pending);
+/// Set by the window thread while a pill should be on the taskbar.
+static SCAN_WANTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 /// Reads the taskbar's item positions every 1.5 s on its own thread.
 ///
@@ -468,6 +474,12 @@ fn start_taskbar_scanner() {
         };
         let mut failures = 0;
         loop {
+            if !SCAN_WANTED.load(std::sync::atomic::Ordering::Relaxed) {
+                // Nothing on the taskbar (no item, tray mode, or a full-screen
+                // app): don't touch Explorer at all.
+                std::thread::sleep(std::time::Duration::from_millis(1000));
+                continue;
+            }
             if let Some(tb) = find_taskbar() {
                 if let Some(r) = rect_of(tb) {
                     let found = taskbar_items(&uia, tb, r);
@@ -487,7 +499,7 @@ fn start_taskbar_scanner() {
                     }
                 }
             }
-            std::thread::sleep(std::time::Duration::from_millis(1500));
+            std::thread::sleep(std::time::Duration::from_millis(3000));
         }
     });
 }
@@ -684,6 +696,8 @@ fn restore_win10(s: &mut State) {
 
 fn layout(s: &mut State) {
     let Some(display) = s.display.clone() else {
+        SCAN_WANTED.store(false, std::sync::atomic::Ordering::Relaxed);
+        s.last_blit = None;
         unsafe {
             let _ = ShowWindow(s.hwnd, SW_HIDE);
         }
@@ -696,8 +710,10 @@ fn layout(s: &mut State) {
         return show_tray(s, &display);
     };
     if s.mode == Mode::Tray {
+        SCAN_WANTED.store(false, std::sync::atomic::Ordering::Relaxed);
         return show_tray(s, &display);
     }
+    SCAN_WANTED.store(true, std::sync::atomic::Ordering::Relaxed);
 
     let scale = unsafe { GetDpiForWindow(taskbar) } as f32 / 96.0;
     let scale = if scale > 0.0 { scale } else { 1.0 };
@@ -754,15 +770,17 @@ fn layout(s: &mut State) {
     let (w, h) = (r.width as i32, r.height as i32);
 
     let Some(target) = placed else {
-        if s.mode != Mode::Tray {
+        if !s.tray_added {
             log(format!(
-                "no room on the taskbar ({}); using the tray. taskbar {:?}; items {:?}; scale {scale}",
+                "no room on the taskbar ({}); using the tray until there is. taskbar {:?}; items {:?}; scale {scale}",
                 s.placement_note,
                 (tb.left, tb.top, tb.right, tb.bottom),
                 scan_items()
             ));
         }
-        s.mode = Mode::Tray;
+        // Temporary: keep re-measuring and move back as soon as it fits.
+        s.last_blit = None;
+        hide_card(s);
         return show_tray(s, &display);
     };
     remove_tray(s);
@@ -779,6 +797,14 @@ fn layout(s: &mut State) {
         s.last_placed = Some((s.mode, target));
     }
     let fullscreen = fullscreen_app_running();
+    SCAN_WANTED.store(!fullscreen, std::sync::atomic::Ordering::Relaxed);
+    // Same bitmap at the same spot: nothing to redraw.
+    let key = (
+        Rc::as_ptr(s.rendered.as_ref().expect("rendered")) as usize,
+        target.left,
+        target.top,
+    );
+    let unchanged = s.last_blit == Some(key);
     unsafe {
         match s.mode {
             Mode::Embedded => {
@@ -805,12 +831,13 @@ fn layout(s: &mut State) {
                     x: target.left - tb.left,
                     y: target.top - tb.top,
                 };
-                if !blit(s.hwnd, r, pos, true) {
+                if !unchanged && !blit(s.hwnd, r, pos, true) {
                     log("layered child window not supported; switching to overlay mode");
                     unembed(s.hwnd);
                     s.mode = Mode::Overlay;
                     return layout(s);
                 }
+                s.last_blit = Some(key);
                 shrink_win10(s, taskbar, target.left);
                 let _ = ShowWindow(s.hwnd, SW_SHOWNOACTIVATE);
             }
@@ -819,20 +846,23 @@ fn layout(s: &mut State) {
                     let _ = ShowWindow(s.hwnd, SW_HIDE);
                     return;
                 }
-                if !blit(
-                    s.hwnd,
-                    r,
-                    POINT {
-                        x: target.left,
-                        y: target.top,
-                    },
-                    false,
-                ) {
+                if !unchanged
+                    && !blit(
+                        s.hwnd,
+                        r,
+                        POINT {
+                            x: target.left,
+                            y: target.top,
+                        },
+                        false,
+                    )
+                {
                     log("overlay window could not be drawn; switching to the tray");
                     let _ = ShowWindow(s.hwnd, SW_HIDE);
                     s.mode = Mode::Tray;
                     return show_tray(s, &display);
                 }
+                s.last_blit = Some(key);
                 // The taskbar raises itself when clicked; push back on top.
                 let _ = SetWindowPos(
                     s.hwnd,
@@ -1064,7 +1094,7 @@ fn show_card(s: &mut State) -> bool {
     let (Some(d), Some(fonts)) = (s.display.as_ref(), s.fonts.as_ref()) else {
         return false;
     };
-    if s.mode == Mode::Tray || s.card_hwnd.is_invalid() {
+    if s.mode == Mode::Tray || s.tray_added || s.card_hwnd.is_invalid() {
         return false;
     }
     let Some(pill) = rect_of(s.hwnd) else {
@@ -1102,6 +1132,9 @@ fn show_card(s: &mut State) -> bool {
         );
         let _ = ShowWindow(s.card_hwnd, SW_SHOWNOACTIVATE);
     }
+    if s.card_rect.is_none() {
+        log(format!("card shown at ({x}, {y}) size {w}x{h}"));
+    }
     s.card_hits = hits;
     s.card_rect = Some(RECT {
         left: x,
@@ -1118,6 +1151,7 @@ fn hide_card(s: &mut State) {
         unsafe {
             let _ = ShowWindow(s.card_hwnd, SW_HIDE);
         }
+        log("card hidden");
     }
     s.card_hits.clear();
     s.hover_since = None;
@@ -1127,7 +1161,7 @@ fn hide_card(s: &mut State) {
 /// Opens the card after a short hover on the pill and closes it once the
 /// pointer has left both the pill and the card for a moment.
 fn track_hover(s: &mut State) {
-    if s.display.is_none() || s.mode == Mode::Tray {
+    if s.display.is_none() || s.mode == Mode::Tray || s.tray_added {
         hide_card(s);
         return;
     }

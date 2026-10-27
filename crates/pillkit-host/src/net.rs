@@ -25,7 +25,7 @@ pub fn server_allowed(server: &str) -> bool {
     s.starts_with("https://")
         || s.starts_with("http://localhost")
         || s.starts_with("http://127.0.0.1")
-        || (cfg!(debug_assertions) && s.starts_with("http://"))
+        || (cfg!(feature = "dev-keys") && s.starts_with("http://"))
 }
 
 fn envelope(resp: Result<ureq::Response, ureq::Error>) -> Result<String, String> {

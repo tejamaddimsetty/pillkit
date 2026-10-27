@@ -36,6 +36,31 @@ def fail(msg):
     sys.exit(1)
 
 
+def check_hover_card():
+    """Windows: hover the pill like a person would and expect the card."""
+    import ctypes
+    import re
+    placed = re.findall(r"placing pill: mode \w+, at \((-?\d+), (-?\d+)\) size (\d+)x(\d+)", host_log())
+    if not placed:
+        fail("no placement in the log to hover over")
+    x, y, w, h = map(int, placed[-1])
+    user32 = ctypes.windll.user32
+    user32.SetCursorPos(x + w // 2, y + h // 2)
+    deadline = time.time() + 5
+    while "card shown" not in host_log():
+        if time.time() > deadline:
+            fail("hovering the pill did not open the card")
+        time.sleep(0.2)
+    print("hover: card shown")
+    user32.SetCursorPos(10, 10)
+    deadline = time.time() + 5
+    while "card hidden" not in host_log():
+        if time.time() > deadline:
+            fail("moving away did not close the card")
+        time.sleep(0.2)
+    print("hover: card hidden")
+
+
 def main():
     global _START
     _START = len(host_log())
@@ -89,6 +114,8 @@ def main():
             if "CRASH" in host_log():
                 fail("the host crashed after placing the pill")
             request({"op": "status"})  # still answering?
+            if os.name == "nt":
+                check_hover_card()
             print("PASS: registered, licensed, feed received, pill placed, host alive")
             print("--- host.log ---\n" + host_log())
             return

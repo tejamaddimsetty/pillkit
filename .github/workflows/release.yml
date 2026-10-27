@@ -28,13 +28,14 @@ jobs:
         env:
           PILLKIT_PUBLIC_KEY: ${{ secrets.PILLKIT_PUBLIC_KEY }}
         run: |
-          cargo build -p pillkit-host --release
-          cargo build -p pillkit-host
           mkdir dist
+          cargo build -p pillkit-host --release
           cp target/release/pillkit-host${{ matrix.ext }} dist/pillkit-host-${{ matrix.name }}${{ matrix.ext }}
-          cp target/debug/pillkit-host${{ matrix.ext }} dist/pillkit-host-dev-${{ matrix.name }}${{ matrix.ext }}
           # Same release binary, preview name: double-click shows sample pills, no setup.
           cp target/release/pillkit-host${{ matrix.ext }} dist/pillkit-preview-${{ matrix.name }}${{ matrix.ext }}
+          # Test build: optimised too, but trusts a local server's key.
+          cargo build -p pillkit-host --release --features dev-keys
+          cp target/release/pillkit-host${{ matrix.ext }} dist/pillkit-host-dev-${{ matrix.name }}${{ matrix.ext }}
       - name: Upload to the release
         shell: bash
         env:

@@ -4,6 +4,25 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.2.4] - 2026-10-27
+
+### Performance
+- Test ("dev") host builds are now optimised release builds with a
+  `dev-keys` feature, instead of unoptimised debug builds. The installers
+  used the debug build, which made drawing several times slower.
+- The host rebuilds its item list only when something changes (and every
+  15 s for schedules), not four times a second.
+- Timers wake 5 times a second instead of 10; Windows redraws the pill only
+  when it changes, scans the taskbar every 3 s, and not at all when nothing
+  is shown or a full-screen app is open.
+- Measured on macOS: idle CPU from about 0.4 % to 0.1 % of one core. CI now
+  fails if the Windows host uses more than 1 % idle.
+
+### Fixed
+- Windows: after falling back to the tray for lack of room, the pill never
+  returned to the taskbar. It now keeps measuring and moves back when it fits.
+- CI hovers the pill on Windows and checks the card opens and closes.
+
 ## [0.2.3] - 2026-10-27
 
 ### Fixed

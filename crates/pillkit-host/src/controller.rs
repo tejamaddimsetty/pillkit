@@ -76,6 +76,11 @@ struct App {
     fetching_feed: bool,
     last_error: Option<String>,
     events: HashMap<(String, &'static str), u32>,
+    /// The items this app may show, rebuilt only when something changes (or
+    /// every 15 s for scheduled start/end times), not on every tick.
+    live: Vec<Item>,
+    live_built_at: i64,
+    dirty: bool,
 }
 
 impl App {
@@ -94,6 +99,9 @@ impl App {
             fetching_feed: false,
             last_error: None,
             events: HashMap::new(),
+            live: Vec::new(),
+            live_built_at: 0,
+            dirty: true,
         }
     }
 
@@ -147,7 +155,7 @@ pub struct Controller {
 
 pub fn public_key() -> Option<VerifyingKey> {
     // Debug builds may point at a local dev server with its own key.
-    if cfg!(debug_assertions) {
+    if cfg!(feature = "dev-keys") {
         if let Ok(k) = std::env::var("PILLKIT_PUBLIC_KEY") {
             return parse_public_key(&k);
         }
@@ -334,6 +342,7 @@ impl Controller {
                                 let app = self.apps.get_mut(&app_id).expect("registered");
                                 app.local.retain(|i| i.id != item.id);
                                 app.local.insert(0, item);
+                app.dirty = true;
                                 app.local.truncate(MAX_LOCAL_ITEMS);
                                 let licensed = app.licensed(now());
                                 self.reply(conn_id, json!({"ok": true, "licensed": licensed}));
@@ -344,6 +353,7 @@ impl Controller {
                     "clear" => {
                         if let Some(app) = self.apps.get_mut(&app_id) {
                             app.local.clear();
+                app.dirty = true;
                         }
                         self.reply(conn_id, json!({"ok": true}));
                     }
@@ -395,6 +405,7 @@ impl Controller {
                     lic.plan, lic.exp
                 ));
                 app.license = Some(lic);
+                app.dirty = true;
                 app.cached.license_token = Some(tok);
                 app.license_failures = 0;
                 app.last_error = None;
@@ -411,6 +422,7 @@ impl Controller {
                 // network trouble keeps the cached licence until its deadline.
                 if e.starts_with("401") || e.starts_with("403") || e.starts_with("404") {
                     app.license = None;
+                    app.dirty = true;
                     app.cached.license_token = None;
                 }
                 app.last_error = Some(e);
@@ -435,12 +447,14 @@ impl Controller {
                 app.next_feed_at = now() + feed.poll_secs.clamp(10, 3600) as i64;
                 log(format!("{app_id}: feed ok, {} items", feed.items.len()));
                 app.feed = Some(feed);
+                app.dirty = true;
                 app.cached.feed_token = Some(tok);
             }
             Err(e) => {
                 log(format!("{app_id}: feed failed: {e}"));
                 if e.starts_with("401") || e.starts_with("403") {
                     app.feed = None;
+                    app.dirty = true;
                     app.cached.feed_token = None;
                     app.license_fetched_at = 0;
                 }
@@ -478,7 +492,15 @@ impl Controller {
                     let _ = tx.send(Msg::Feed { app_id: id, result });
                 });
             }
-            self.rotator.set_items(app_id, app.items(t));
+            if app.dirty
+                || t - app.live_built_at >= 15
+                || app.license.as_ref().is_some_and(|l| t >= l.exp)
+            {
+                app.live = app.items(t);
+                app.live_built_at = t;
+                app.dirty = false;
+                self.rotator.set_items(app_id, app.live.clone());
+            }
         }
 
         if t - self.last_flush >= EVENT_FLUSH_SECS {
@@ -497,7 +519,7 @@ impl Controller {
         let still_valid = self.current.as_ref().is_some_and(|(app_id, item)| {
             self.apps
                 .get(app_id)
-                .is_some_and(|a| a.items(t).iter().any(|i| i.id == item.id))
+                .is_some_and(|a| a.live.iter().any(|i| i.id == item.id))
         });
         if still_valid && t < self.current_until {
             return;

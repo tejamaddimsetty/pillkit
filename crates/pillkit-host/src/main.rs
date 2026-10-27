@@ -9,7 +9,10 @@
 //!   pillkit-host --version
 
 // Release builds on Windows have no console window (the host starts at login).
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(windows, not(debug_assertions), not(feature = "dev-keys")),
+    windows_subsystem = "windows"
+)]
 
 mod autostart;
 mod controller;

@@ -48,8 +48,8 @@ LATEST="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev
 if [[ "${1:-}" == "--update" || ! -x "$HOST" || ( -n "$LATEST" && "$HAVE" != "$LATEST" ) ]]; then
   if command -v cargo >/dev/null; then
     echo "  Building from source with cargo..."
-    (cd "$ROOT" && cargo build -q -p pillkit-host)
-    cp "$ROOT/target/debug/pillkit-host" "$HOST"
+    (cd "$ROOT" && cargo build -q --release -p pillkit-host --features dev-keys)
+    cp "$ROOT/target/release/pillkit-host" "$HOST"
   else
     ARCH="$(uname -m)"; [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]] && ARCH=arm64 || ARCH=x64
     [[ "$OS-$ARCH" == "macos-arm64" || "$OS-$ARCH" == "linux-x64" ]] || fail "No prebuilt host for $OS-$ARCH. Install Rust (https://rustup.rs) and run again."

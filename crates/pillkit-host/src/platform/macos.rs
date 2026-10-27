@@ -642,7 +642,7 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
     let target: &AnyObject = &delegate;
     let _timer = unsafe {
         NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
-            0.1,
+            0.2,
             target,
             sel!(tick:),
             None,

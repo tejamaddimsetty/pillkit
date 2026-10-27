@@ -5,6 +5,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+# Test builds: trust a local server's signing key (PILLKIT_PUBLIC_KEY) and
+# allow plain http:// to it. Never enabled in the builds shipped to end users.
+dev-keys = []
+
 [[bin]]
 name = "pillkit-host"
 path = "src/main.rs"
