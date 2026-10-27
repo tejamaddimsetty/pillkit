@@ -1,6 +1,6 @@
 {
   "name": "@pillkit/sdk",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Put your app in the macOS menu bar and the Windows taskbar.",
   "license": "Apache-2.0",
   "type": "module",
@@ -8,6 +8,6 @@
   "types": "index.d.ts",
   "files": ["index.js", "index.d.ts", "bin/", "README.md"],
   "engines": { "node": ">=18" },
-  "pillkit": { "hostVersion": "0.2.4" },
+  "pillkit": { "hostVersion": "0.2.5" },
   "keywords": ["menu bar", "taskbar", "tray", "widget", "electron", "sponsor"]
 }

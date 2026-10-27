@@ -66,24 +66,37 @@ declare_class!(
     unsafe impl Delegate {
         #[method(tick:)]
         fn tick(&self, _timer: &NSTimer) {
-            self.on_tick();
-            self.check_fits();
-            self.track_hover();
+            guarded("tick", || {
+                self.on_tick();
+                self.check_fits();
+                self.track_hover();
+            });
         }
 
         #[method(clicked:)]
         fn clicked(&self, _sender: &AnyObject) {
-            self.on_click();
+            guarded("click", || self.on_click());
         }
 
         #[method(cardButton:)]
         fn card_button(&self, sender: &NSButton) {
-            let tag = unsafe { sender.tag() };
-            self.close_card();
-            let _ = self.ivars().events.send(Msg::Ui(UiEvent::Menu(tag as u32)));
+            guarded("card button", || {
+                let tag = unsafe { sender.tag() };
+                self.close_card();
+                let _ = self.ivars().events.send(Msg::Ui(UiEvent::Menu(tag as u32)));
+            });
         }
     }
 );
+
+/// Runs an Objective-C callback body. A Rust panic must never cross into
+/// AppKit (that aborts the whole host), so it's caught, logged, and the host
+/// carries on; the next timer tick starts fresh.
+fn guarded(name: &str, f: impl FnOnce()) {
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err() {
+        log(format!("recovered from an error in {name}; carrying on"));
+    }
+}
 
 impl Delegate {
     fn new(mtm: MainThreadMarker, ivars: Ivars) -> Retained<Self> {
@@ -213,7 +226,8 @@ impl Delegate {
 
     fn hide(&self) {
         self.close_card();
-        if let Some(item) = self.ivars().status.borrow().as_ref() {
+        let item = self.ivars().status.borrow().clone();
+        if let Some(item) = item {
             unsafe { item.setVisible(false) };
         }
         *self.ivars().display.borrow_mut() = None;
@@ -298,7 +312,10 @@ impl Delegate {
             && tr.size.width > 0.0
             && left < tr.origin.x
             && right > tl.origin.x + tl.size.width;
-        if !off_screen && !under_notch {
+        // Test builds only: pretend the menu bar is full, to exercise stepping down.
+        let forced =
+            cfg!(feature = "dev-keys") && std::env::var_os("PILLKIT_TEST_NO_ROOM").is_some();
+        if !off_screen && !under_notch && !forced {
             self.ivars().misses.set(0);
             self.ivars().shown_at.set(None);
             return;
@@ -307,7 +324,9 @@ impl Delegate {
         // doesn't cost us width.
         let misses = self.ivars().misses.get() + 1;
         let step = self.ivars().width_step.get();
-        if misses < 2 || step + 1 >= 5 {
+        // Three misses over ~4 s: a WindowServer restart or a display change
+        // briefly hides every menu bar item, and that isn't a lack of room.
+        if misses < 3 || step + 1 >= 5 {
             self.ivars().misses.set(misses);
             return recheck();
         }
@@ -319,7 +338,8 @@ impl Delegate {
             slot_name(step),
             slot_name(step + 1)
         ));
-        if let Some(d) = self.ivars().display.borrow().clone() {
+        let current = self.ivars().display.borrow().clone();
+        if let Some(d) = current {
             self.show(d);
         }
     }

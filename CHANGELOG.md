@@ -4,6 +4,19 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.2.5] - 2026-10-27
+
+### Fixed
+- macOS: the host crashed ("RefCell already borrowed") the first time it had
+  to shrink the pill, because it held the current item while redrawing it.
+  Seen when WindowServer froze and restarted under heavy system memory
+  pressure (the freeze itself came from other apps; the host was using
+  34 MB and almost no CPU).
+- macOS and Windows: an unexpected error inside an OS callback no longer
+  aborts the host; it's logged and the host carries on.
+- macOS: needs three misses over ~4 s before shrinking, so a WindowServer
+  restart or display change isn't mistaken for a full menu bar.
+
 ## [0.2.4] - 2026-10-27
 
 ### Performance

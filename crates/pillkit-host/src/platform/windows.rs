@@ -241,7 +241,35 @@ pub fn run(cmds: Receiver<UiCmd>, events: Sender<Msg>) {
     }
 }
 
+/// A panic inside a window procedure aborts the process; catch it, log it,
+/// and let Windows handle the message normally.
+fn guarded(name: &str, f: impl FnOnce() -> LRESULT, fallback: impl FnOnce() -> LRESULT) -> LRESULT {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(r) => r,
+        Err(_) => {
+            log(format!("recovered from an error in {name}; carrying on"));
+            fallback()
+        }
+    }
+}
+
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    guarded(
+        "the pill window",
+        || unsafe { wndproc_inner(hwnd, msg, wp, lp) },
+        || unsafe { DefWindowProcW(hwnd, msg, wp, lp) },
+    )
+}
+
+unsafe extern "system" fn card_wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    guarded(
+        "the card window",
+        || unsafe { card_wndproc_inner(hwnd, msg, wp, lp) },
+        || unsafe { DefWindowProcW(hwnd, msg, wp, lp) },
+    )
+}
+
+unsafe fn wndproc_inner(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
         WM_TIMER if wp.0 == TIMER_POLL => {
             on_tick();
@@ -1194,7 +1222,7 @@ fn track_hover(s: &mut State) {
     }
 }
 
-unsafe extern "system" fn card_wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+unsafe fn card_wndproc_inner(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
         // Clicking the card must not steal focus from the user's window.
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
