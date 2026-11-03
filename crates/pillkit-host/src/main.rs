@@ -2,6 +2,8 @@
 //!
 //!   pillkit-host run              start (what the login entry runs)
 //!   pillkit-host preview          show built-in sample items (no server needed)
+//!   pillkit-host show --title T   show a pill from a script (see cli.rs)
+//!   pillkit-host clear|remove|status
 //!   pillkit-host install          copy into the data dir and start at login
 //!   pillkit-host uninstall        remove the login entry, binary and app cache
 //!   pillkit-host render IN OUT    render an item JSON file to a PNG (design preview)
@@ -15,6 +17,7 @@
 )]
 
 mod autostart;
+mod cli;
 mod controller;
 mod ipc;
 mod net;
@@ -35,13 +38,19 @@ fn main() {
         Some("render") if args.len() == 3 => exit_on_err(render(&args[1], &args[2])),
         Some("render-card") if args.len() == 2 => exit_on_err(render_card(&args[1])),
         Some("preview") => preview::run(),
+        Some("show") | Some("clear") | Some("remove") | Some("status") => {
+            if let Err(e) = cli::main(&args) {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
         // The preview build is the same binary under another name, so a
         // double-click (no arguments) on pillkit-preview.exe opens the preview.
         None if is_preview_binary() => preview::run(),
         Some("run") | None => run(),
         _ => {
             eprintln!(
-                "usage: pillkit-host [run|install|uninstall|render <item.json> <out.png>|--version]"
+                "usage: pillkit-host [run | preview | show --title T | clear | remove | status | install | uninstall | render IN OUT | --version]"
             );
             std::process::exit(2);
         }

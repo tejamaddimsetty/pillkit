@@ -30,6 +30,22 @@ and end users can always hide.
 | Windows 10 | Taskbar, left of the tray | ✅ v0.1, hands-on test pending |
 | Linux (KDE, GNOME, …) | Tray item / GNOME Shell extension | 🗓 v0.3 |
 
+## For developers: the npm package
+
+```bash
+npm install @pillkit/sdk
+```
+
+```js
+import { PillKit } from "@pillkit/sdk";
+
+const pill = await PillKit.start({ appId: "my-app" });
+await pill.show({ id: "build", title: "Build passed", subtitle: "main · 2m ago", url: "https://ci.example.com" });
+```
+
+No server or account: everything runs on the user's computer. Full guide:
+[sdks/node/README.md](sdks/node/README.md).
+
 ## Quick start
 
 Clone or download the repo, then:

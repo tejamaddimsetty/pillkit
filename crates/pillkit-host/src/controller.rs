@@ -59,6 +59,12 @@ struct Cached {
     server: String,
     license_token: Option<String>,
     feed_token: Option<String>,
+    /// Open mode (no server): link schemes the app may open besides https,
+    /// e.g. "myapp://", and its items, kept so they survive a restart.
+    #[serde(default)]
+    link_prefixes: Vec<String>,
+    #[serde(default)]
+    local: Vec<Item>,
 }
 
 struct App {
@@ -106,18 +112,43 @@ impl App {
     }
 
     fn licensed(&self, t: i64) -> bool {
+        if self.open() {
+            return true;
+        }
         self.license.as_ref().is_some_and(|l| t < l.exp)
     }
 
-    fn allowed_prefixes(&self) -> &[String] {
+    /// Open mode: the app talks only to this host, with no server, licence
+    /// or network. Its own items show directly.
+    fn open(&self) -> bool {
+        self.cached.server.is_empty()
+    }
+
+    fn allowed_prefixes(&self) -> Vec<String> {
+        if self.open() {
+            // Secure web links plus the app's own link schemes. Dangerous
+            // schemes (file:, javascript:, ...) are refused by policy anyway.
+            let mut p = vec!["https://".to_string()];
+            p.extend(self.cached.link_prefixes.iter().cloned());
+            return p;
+        }
         self.feed
             .as_ref()
-            .map(|f| f.allowed_url_prefixes.as_slice())
-            .unwrap_or(&[])
+            .map(|f| f.allowed_url_prefixes.clone())
+            .unwrap_or_default()
     }
 
     /// Everything this app may show right now.
     fn items(&self, t: i64) -> Vec<Item> {
+        if self.open() {
+            return self
+                .local
+                .iter()
+                .take(MAX_LOCAL_ITEMS)
+                .cloned()
+                .map(policy::sanitize)
+                .collect();
+        }
         let Some(lic) = self.license.as_ref().filter(|l| t < l.exp) else {
             return Vec::new();
         };
@@ -183,9 +214,6 @@ fn safe_id(id: &str) -> bool {
 impl Controller {
     pub fn new(tx: Sender<Msg>, ui: Sender<UiCmd>) -> Controller {
         let key = public_key();
-        if key.is_none() {
-            log("no server public key configured: every licence will be rejected");
-        }
         let mut c = Controller {
             key,
             tx,
@@ -218,6 +246,7 @@ impl Controller {
                 continue;
             }
             let mut app = App::new(cached.clone());
+            app.local = cached.local.clone();
             let t = now();
             if let (Some(k), Some(tok)) = (&self.key, &cached.license_token) {
                 app.license = open_license(tok, k, &cached.app_id, t).ok();
@@ -299,21 +328,43 @@ impl Controller {
             "hello" => self.reply(conn_id, json!({"ok": true, "version": env!("CARGO_PKG_VERSION"), "protocol": pillkit_core::PROTOCOL_VERSION})),
             "register" => {
                 let (app_id, key, bundle_id) = (s("app_id"), s("key"), s("bundle_id"));
-                let server = Some(s("server")).filter(|x| !x.is_empty()).unwrap_or_else(|| net::DEFAULT_SERVER.into());
-                if !safe_id(&app_id) || key.is_empty() {
-                    self.reply(conn_id, json!({"ok": false, "error": "app_id_and_key_required"}));
+                // No server: open mode (local only). A server: licensed mode.
+                let server = s("server");
+                if !safe_id(&app_id) {
+                    self.reply(conn_id, json!({"ok": false, "error": "app_id_must_be_letters_digits_dash_underscore"}));
                     return true;
                 }
-                if !net::server_allowed(&server) {
+                if !server.is_empty() && key.is_empty() {
+                    self.reply(conn_id, json!({"ok": false, "error": "key_required_with_server"}));
+                    return true;
+                }
+                if !server.is_empty() && !net::server_allowed(&server) {
                     self.reply(conn_id, json!({"ok": false, "error": "server_must_be_https"}));
                     return true;
                 }
+                let link_prefixes: Vec<String> = body
+                    .get("link_schemes")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(|x| x.trim().trim_end_matches("://").trim_end_matches(':').to_ascii_lowercase())
+                            .filter(|x| {
+                                !x.is_empty()
+                                    && x.chars().all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
+                                    && !["http", "https", "file", "javascript", "data", "vbscript", "ms-msdt", "search-ms"].contains(&x.as_str())
+                            })
+                            .map(|x| format!("{x}://"))
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 let app = self.apps.entry(app_id.clone()).or_insert_with(|| App::new(Cached::default()));
                 let changed = app.cached.key != key || app.cached.server != server || app.cached.bundle_id != bundle_id;
                 app.cached.app_id = app_id.clone();
                 app.cached.key = key;
                 app.cached.server = server;
                 app.cached.bundle_id = bundle_id;
+                app.cached.link_prefixes = link_prefixes;
                 if changed {
                     app.license_fetched_at = 0;
                     app.next_feed_at = 0;
@@ -325,9 +376,11 @@ impl Controller {
                 app.conns.insert(conn_id);
                 let licensed = app.licensed(now());
                 self.conn_app.insert(conn_id, app_id.clone());
-                log(format!("{app_id}: registered by an app (server {})", self.apps[&app_id].cached.server));
+                let mode = if self.apps[&app_id].open() { "open mode, local only".to_string() } else { format!("server {}", self.apps[&app_id].cached.server) };
+                log(format!("{app_id}: registered by an app ({mode})"));
                 self.save(&app_id);
-                self.reply(conn_id, json!({"ok": true, "licensed": licensed}));
+                let mode = if self.apps[&app_id].open() { "open" } else { "licensed" };
+                self.reply(conn_id, json!({"ok": true, "licensed": licensed, "mode": mode}));
             }
             "show" | "clear" | "unregister" | "status" => {
                 let Some(app_id) = self.conn_app.get(&conn_id).cloned() else {
@@ -338,14 +391,25 @@ impl Controller {
                     "show" => {
                         let item = body.get("item").cloned().map(serde_json::from_value::<Item>);
                         match item {
+                            Some(Ok(item))
+                                if matches!(&item.action, Action::OpenUrl { .. } | Action::DeepLink { .. })
+                                    && policy::resolve_url(&item.action, &self.apps[&app_id].allowed_prefixes()).is_none() =>
+                            {
+                                self.reply(
+                                    conn_id,
+                                    json!({"ok": false, "error": "link_not_allowed: use an https:// link, or declare your app's scheme in linkSchemes"}),
+                                );
+                            }
                             Some(Ok(item)) if !item.id.is_empty() && !item.title.is_empty() => {
                                 let app = self.apps.get_mut(&app_id).expect("registered");
                                 app.local.retain(|i| i.id != item.id);
                                 app.local.insert(0, item);
+                                app.cached.local = if app.open() { app.local.clone() } else { Vec::new() };
                 app.dirty = true;
                                 app.local.truncate(MAX_LOCAL_ITEMS);
                                 let licensed = app.licensed(now());
                                 self.reply(conn_id, json!({"ok": true, "licensed": licensed}));
+                                self.save(&app_id);
                             }
                             _ => self.reply(conn_id, json!({"ok": false, "error": "item_needs_id_and_title"})),
                         }
@@ -353,9 +417,11 @@ impl Controller {
                     "clear" => {
                         if let Some(app) = self.apps.get_mut(&app_id) {
                             app.local.clear();
+                            app.cached.local.clear();
                 app.dirty = true;
                         }
                         self.reply(conn_id, json!({"ok": true}));
+                        self.save(&app_id);
                     }
                     "status" => {
                         let t = now();
@@ -476,7 +542,9 @@ impl Controller {
             } else {
                 t >= app.license_retry_at
             };
-            if !app.fetching_license && licence_due {
+            if app.open() {
+                // Open mode: nothing to fetch.
+            } else if !app.fetching_license && licence_due {
                 app.fetching_license = true;
                 log(format!("{app_id}: requesting a licence from {}", c.server));
                 let (tx, id) = (self.tx.clone(), app_id.clone());
@@ -657,7 +725,7 @@ impl Controller {
         };
         match action {
             Action::OpenUrl { .. } | Action::DeepLink { .. } => {
-                match policy::resolve_url(action, app.allowed_prefixes()) {
+                match policy::resolve_url(action, &app.allowed_prefixes()) {
                     Some(url) => crate::platform::open_url(url),
                     None => log(format!(
                         "{app_id}: blocked a URL that is not on the app's allowlist"
@@ -678,6 +746,10 @@ impl Controller {
 
     fn flush_events(&mut self) {
         for app in self.apps.values_mut() {
+            if app.open() {
+                app.events.clear();
+                continue;
+            }
             if app.events.is_empty() {
                 continue;
             }

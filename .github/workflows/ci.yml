@@ -47,21 +47,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: cargo build -p pillkit-host --release --features dev-keys
-      - run: python -m pip install -r server/requirements.txt
-      - name: Start server, start host, register an app
+      - run: cargo build -p pillkit-host --release
+      - name: Start the host, show an item (open mode, no server)
         shell: pwsh
         run: |
-          Set-Location server
-          $seed = python dev_seed.py
-          $appId = ($seed | Select-String "APP_ID=(.*)").Matches[0].Groups[1].Value.Trim()
-          $key = ($seed | Select-String "KEY=(pk_.*)").Matches[0].Groups[1].Value.Trim()
-          Start-Process python -ArgumentList "app.py" -WindowStyle Hidden
-          for ($i = 0; $i -lt 60; $i++) { try { Invoke-RestMethod http://127.0.0.1:5050/healthz | Out-Null; break } catch { Start-Sleep -Milliseconds 500 } }
-          $env:PILLKIT_PUBLIC_KEY = (Invoke-RestMethod http://127.0.0.1:5050/v1/public-key).key
-          Set-Location ..
           Start-Process target\release\pillkit-host.exe -ArgumentList "run" -WindowStyle Hidden
-          python scripts\smoke_test.py $appId $key http://127.0.0.1:5050
+          python scripts\smoke_test.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # Idle cost: CPU time used by the host over 30 s, as % of one core.
           $p = Get-Process pillkit-host

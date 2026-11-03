@@ -1,8 +1,8 @@
-"""A stand-in "developer app" for local testing, using only the Python standard
-library. It does what the SDK does: connect to pillkit-host, register, and show
-a status item next to the portal's items.
+"""A tiny "developer app" using only the Python standard library. It does
+what the SDK does: connect to pillkit-host, register (open mode: local only,
+no server), and show an item.
 
-    python scripts/demo_app.py APP_ID KEY [SERVER]
+    python scripts/demo_app.py [APP_ID]
 """
 import json
 import os
@@ -69,13 +69,10 @@ def connect(timeout=15):
 
 
 def main():
-    if len(sys.argv) < 3:
-        raise SystemExit(__doc__)
-    app_id, key = sys.argv[1], sys.argv[2]
-    server = sys.argv[3] if len(sys.argv) > 3 else "http://127.0.0.1:5050"
+    app_id = sys.argv[1] if len(sys.argv) > 1 else "python-demo"
 
     c = connect()
-    c.send({"op": "register", "app_id": app_id, "key": key, "bundle_id": "", "server": server})
+    c.send({"op": "register", "app_id": app_id})
     reply = c.recv()
     if not reply.get("ok"):
         raise SystemExit(f"Register failed: {reply.get('error')}")

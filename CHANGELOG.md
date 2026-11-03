@@ -4,6 +4,26 @@ All notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 semantic versioning.
 
+## [0.3.0] - 2026-11-03
+
+### Added
+- **`@pillkit/sdk` on npm** (Node and Electron), with the host bundled per
+  platform as `@pillkit/host-darwin-arm64`, `-darwin-x64`, `-win32-x64` and
+  `-linux-x64` (npm installs only the matching one). Friendly item shape
+  (`title`, `subtitle`, `url`, `icon: "logo.png"`, `onClick`, ...),
+  `remove(id)`, `linkSchemes`, `startAtLogin`, and a `npx pillkit` command.
+- **Open mode:** apps register with just an `appId` and show their own items.
+  No server, account, licence or network. Items persist across restarts.
+  https links and the app's declared schemes are allowed; unsafe links are
+  refused when shown.
+- `pillkit-host show | clear | remove | status` for shell scripts.
+- Release workflow publishes the npm packages (needs `NPM_TOKEN`) and adds
+  an Intel Mac build.
+
+### Changed
+- Installers and the Windows CI test use open mode (no Python, no server).
+  The server stays in `server/` for a future hosted option.
+
 ## [0.2.5] - 2026-10-27
 
 ### Fixed

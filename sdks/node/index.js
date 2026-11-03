@@ -1,18 +1,23 @@
-// @pillkit/sdk: talks to the per-user pillkit-host over a local socket
-// (docs/PROTOCOL.md §5). Installs and starts the host on first use.
+// @pillkit/sdk: put your app's notifications in the macOS menu bar and the
+// Windows taskbar. Talks to the per-user pillkit-host over a local socket
+// (docs/PROTOCOL.md §5), starting it on first use. Local only: no server,
+// account or network.
 
 import { spawn, execFileSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 const pkg = JSON.parse(readFileSync(path.join(here, "package.json"), "utf8"));
-const BUNDLED_HOST_VERSION = pkg.pillkit.hostVersion;
+const BUNDLED_HOST_VERSION = pkg.version;
 const EXE = process.platform === "win32" ? "pillkit-host.exe" : "pillkit-host";
+const APP_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 export function dataDir() {
   if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "pillkit");
@@ -28,13 +33,19 @@ export function endpoint() {
   return path.join(dataDir(), "host.sock");
 }
 
+/** The host binary for this computer, from @pillkit/host-<os>-<arch>. */
 function bundledHost(opts) {
-  const candidates = [
-    opts.hostPath,
-    process.env.PILLKIT_HOST_PATH,
-    // Electron: ship the binary outside the asar archive (asarUnpack).
-    path.join(here, "bin", `${process.platform}-${process.arch}`, EXE).replace("app.asar", "app.asar.unpacked"),
-  ].filter(Boolean);
+  const fromPackage = () => {
+    try {
+      return require.resolve(`@pillkit/host-${process.platform}-${process.arch}/bin/${EXE}`);
+    } catch {
+      return null;
+    }
+  };
+  const candidates = [opts.hostPath, process.env.PILLKIT_HOST_PATH, fromPackage()]
+    .filter(Boolean)
+    // Electron: binaries must live outside the asar archive (asarUnpack).
+    .map((p) => p.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`));
   return candidates.find((p) => existsSync(p));
 }
 
@@ -102,12 +113,15 @@ function connect() {
   });
 }
 
-function installAndLaunch(hostPath) {
-  // `install` copies the binary into the user's data dir and adds the login entry.
-  const out = execFileSync(hostPath, ["install"], { encoding: "utf8" });
-  const installed = out.trim().replace(/^installed to /, "");
-  const child = spawn(installed, ["run"], { detached: true, stdio: "ignore", windowsHide: true });
-  child.unref();
+function launch(hostPath, startAtLogin) {
+  let exe = hostPath;
+  if (startAtLogin) {
+    // Copies the host into the user's data folder and adds a login item, so
+    // pills keep showing after your app quits and after a restart.
+    execFileSync(hostPath, ["install"], { stdio: "ignore", windowsHide: true });
+    exe = path.join(dataDir(), "bin", EXE);
+  }
+  spawn(exe, ["run"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
 }
 
 async function connectOrLaunch(opts) {
@@ -125,24 +139,57 @@ async function connectOrLaunch(opts) {
     }
   }
   if (conn) return conn;
-  if (!host) throw new Error("pillkit-host is not running and no bundled host binary was found (set hostPath or PILLKIT_HOST_PATH)");
-
-  installAndLaunch(host);
+  if (!host) {
+    throw new Error(
+      `pillkit: no host for ${process.platform}-${process.arch}. Reinstall @pillkit/sdk, or set hostPath / PILLKIT_HOST_PATH.`,
+    );
+  }
+  launch(host, opts.startAtLogin !== false);
   for (let i = 0; i < 50; i++) {
     await sleep(100);
     conn = await connect().catch(() => null);
     if (conn) return conn;
   }
-  throw new Error("pillkit-host did not start");
+  throw new Error("pillkit: the host did not start");
+}
+
+/** Turns the friendly item shape into the wire format. */
+function toWire(item) {
+  if (!item?.id || !item?.title) throw new Error("pillkit: an item needs an id and a title");
+  const wire = {
+    id: String(item.id),
+    title: String(item.title),
+    subtitle: item.subtitle ?? "",
+    label: item.label ?? "",
+    theme: item.theme ?? {
+      background: item.background ?? "#E8F04A",
+      foreground: item.foreground ?? "#2A2C05",
+    },
+    duration_secs: item.seconds ?? item.duration_secs ?? 20,
+    weight: item.weight ?? 1,
+  };
+  if (item.action) wire.action = item.action;
+  else if (item.url) {
+    const url = String(item.url);
+    wire.action = { type: /^https:\/\//i.test(url) ? "open_url" : "deep_link", url };
+  } else if (item.onClick) wire.action = { type: "callback", name: String(item.onClick) };
+  if (item.card || item.body) wire.card = item.card ?? { body: String(item.body), buttons: [] };
+  if (typeof item.icon === "string") {
+    const data = item.icon.endsWith(".png") ? readFileSync(item.icon).toString("base64") : item.icon;
+    wire.icon = { type: "png", data };
+  } else if (item.icon) wire.icon = item.icon;
+  return wire;
 }
 
 export class PillKit extends EventEmitter {
   /** @param {import('./index').StartOptions} opts */
   static async start(opts) {
-    if (!opts?.appId || !opts?.key) throw new Error("PillKit.start needs appId and key");
-    const bar = new PillKit(opts);
-    await bar.#open();
-    return bar;
+    if (!APP_ID.test(opts?.appId ?? "")) {
+      throw new Error("pillkit: appId is required (letters, digits, - and _, up to 64), e.g. \"my-app\"");
+    }
+    const pill = new PillKit(opts);
+    await pill.#open();
+    return pill;
   }
 
   #opts; #conn = null; #closed = false; #local = new Map();
@@ -160,13 +207,13 @@ export class PillKit extends EventEmitter {
       if (!this.#closed) this.#reconnect();
     });
     const res = await conn.request({
-      op: "register", app_id: this.#opts.appId, key: this.#opts.key,
-      bundle_id: this.#opts.bundleId || "", server: this.#opts.server || "",
+      op: "register",
+      app_id: this.#opts.appId,
+      link_schemes: this.#opts.linkSchemes ?? [],
     });
     if (!res.ok) throw new Error(`pillkit: ${res.error}`);
     this.#conn = conn;
-    this.licensed = !!res.licensed;
-    // Re-send local items after a reconnect (host restarted or was upgraded).
+    // Re-send items after a reconnect (the host restarted or was upgraded).
     for (const item of this.#local.values()) await conn.request({ op: "show", item });
   }
 
@@ -178,18 +225,28 @@ export class PillKit extends EventEmitter {
   }
 
   async #call(body) {
-    if (!this.#conn) throw new Error("pillkit-host is not connected");
+    if (!this.#conn) throw new Error("pillkit: not connected to the host");
     const res = await this.#conn.request(body);
     if (!res.ok) throw new Error(`pillkit: ${res.error}`);
     return res;
   }
 
-  /** Show your own item (status, news). Needs a valid licence to appear. */
+  /** Shows an item next to the clock (or updates it, if the id exists). */
   async show(item) {
-    this.#local.set(item.id, item);
-    return this.#call({ op: "show", item });
+    const wire = toWire(item);
+    const res = await this.#call({ op: "show", item: wire });
+    this.#local.set(wire.id, wire);
+    return res;
   }
 
+  /** Removes one item. */
+  async remove(id) {
+    this.#local.delete(String(id));
+    await this.#call({ op: "clear" });
+    for (const item of this.#local.values()) await this.#call({ op: "show", item });
+  }
+
+  /** Removes all of this app's items. */
   async clear() {
     this.#local.clear();
     return this.#call({ op: "clear" });
@@ -197,14 +254,14 @@ export class PillKit extends EventEmitter {
 
   async status() { return this.#call({ op: "status" }); }
 
-  /** Stop showing anything for this app, even after restarts. */
+  /** Removes the app and its items from the host for good. */
   async unregister() {
     const r = await this.#call({ op: "unregister" });
     this.close();
     return r;
   }
 
-  /** Disconnect. The host keeps showing this app's server-managed items. */
+  /** Disconnects. Items already shown stay until cleared. */
   close() {
     this.#closed = true;
     this.#conn?.close();

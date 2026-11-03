@@ -1,7 +1,8 @@
 """End-to-end check used in CI: talk to a running pillkit-host like an app
-does, and confirm it registers and gets a licence from the local server.
+does (open mode, no server), show an item, and confirm the pill is placed,
+the card opens on hover (Windows), and the host stays alive.
 
-    python scripts/smoke_test.py APP_ID KEY [SERVER]
+    python scripts/smoke_test.py
 Exits non-zero (and prints host.log) on failure.
 """
 import os
@@ -64,8 +65,6 @@ def check_hover_card():
 def main():
     global _START
     _START = len(host_log())
-    app_id, key = sys.argv[1], sys.argv[2]
-    server = sys.argv[3] if len(sys.argv) > 3 else "http://127.0.0.1:5050"
     c = connect(timeout=30)
 
     # A reply that never comes is the failure we care about most (deadlock),
@@ -89,19 +88,19 @@ def main():
 
     r = request({"op": "hello"})
     print("hello:", r)
-    r = request({"op": "register", "app_id": app_id, "key": key, "bundle_id": "", "server": server})
+    r = request({"op": "register", "app_id": "smoke-test"})
     print("register:", r)
+    if not r.get("ok") or r.get("mode") != "open":
+        fail(f"register (open mode) refused: {r}")
+    r = request({"op": "show", "item": {"id": "smoke", "title": "Smoke test", "subtitle": "open mode",
+                                        "label": "CI", "action": {"type": "open_url", "url": "https://example.com/"}}})
     if not r.get("ok"):
-        fail(f"register refused: {r}")
-    deadline = time.time() + 45
-    while time.time() < deadline:
-        st = request({"op": "status"})
-        if st.get("licensed") and st.get("feed_items", 0) > 0:
-            print("status:", st)
-            break
-        time.sleep(2)
-    else:
-        fail(f"not licensed after 45 s: {st}")
+        fail(f"show refused: {r}")
+    r = request({"op": "show", "item": {"id": "bad", "title": "Bad", "action": {"type": "open_url", "url": "file:///etc/passwd"}}})
+    if r.get("ok"):
+        fail("a file: link was accepted")
+    st = request({"op": "status"})
+    print("status:", st)
 
     # The pill must actually be put somewhere, and the host must survive it.
     deadline = time.time() + 20

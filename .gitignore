@@ -7,3 +7,6 @@ server/storage/
 server/*.db
 .DS_Store
 **/.venv
+
+# Host binaries are copied in by the release workflow
+npm/*/bin/

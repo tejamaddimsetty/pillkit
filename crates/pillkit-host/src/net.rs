@@ -5,8 +5,6 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-pub const DEFAULT_SERVER: &str = "https://api.pillkit.dev";
-
 fn agent() -> ureq::Agent {
     let mut builder = ureq::AgentBuilder::new();
     // The OS TLS stack (SChannel / Security.framework / OpenSSL) and its trust store.

@@ -1,13 +1,49 @@
 {
   "name": "@pillkit/sdk",
-  "version": "0.2.5",
-  "description": "Put your app in the macOS menu bar and the Windows taskbar.",
+  "version": "0.3.0",
+  "description": "Show your app's notifications as a pill in the macOS menu bar and the Windows taskbar.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
-  "files": ["index.js", "index.d.ts", "bin/", "README.md"],
-  "engines": { "node": ">=18" },
-  "pillkit": { "hostVersion": "0.2.5" },
-  "keywords": ["menu bar", "taskbar", "tray", "widget", "electron", "sponsor"]
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "cli.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@pillkit/host-darwin-arm64": "0.3.0",
+    "@pillkit/host-darwin-x64": "0.3.0",
+    "@pillkit/host-win32-x64": "0.3.0",
+    "@pillkit/host-linux-x64": "0.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tejamaddimsetty/pillkit.git",
+    "directory": "sdks/node"
+  },
+  "homepage": "https://github.com/tejamaddimsetty/pillkit#readme",
+  "keywords": [
+    "menu bar",
+    "taskbar",
+    "notification",
+    "status",
+    "widget",
+    "electron",
+    "macos",
+    "windows"
+  ],
+  "bin": {
+    "pillkit": "cli.js"
+  }
 }
