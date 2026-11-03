@@ -9,13 +9,13 @@ const exe = process.platform === "win32" ? "pillkit-host.exe" : "pillkit-host";
 let host = process.env.PILLKIT_HOST_PATH;
 if (!host) {
   try {
-    host = require.resolve(`@pillkit/host-${process.platform}-${process.arch}/bin/${exe}`);
+    host = require.resolve(`pillkit-host-${process.platform}-${process.arch}/bin/${exe}`);
   } catch {
     host = null;
   }
 }
 if (!host || !existsSync(host)) {
-  console.error(`pillkit: no host for ${process.platform}-${process.arch}. Reinstall @pillkit/sdk.`);
+  console.error(`pillkit: no host for ${process.platform}-${process.arch}. Reinstall pillkit.`);
   process.exit(1);
 }
 const r = spawnSync(host, process.argv.slice(2), { stdio: "inherit", windowsHide: true });

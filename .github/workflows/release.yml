@@ -1,16 +1,15 @@
 name: release
 
-# Push a tag like v0.3.0 to:
-#   1. build pillkit-host for each platform and attach it to a GitHub Release
-#   2. publish @pillkit/host-<os>-<arch> and @pillkit/sdk to npm
-#      (needs the NPM_TOKEN repository secret; skipped if it isn't set)
+# Push a tag like v0.3.0 to build pillkit-host for each platform and attach
+# to the GitHub Release: the raw binaries, and the npm packages (`pillkit` and
+# pillkit-host-<os>-<arch>) as .tgz files. Publishing to npm is done by hand
+# from the maintainer's account: npm publish <each .tgz>.
 on:
   push:
     tags: ["v*"]
 
 permissions:
   contents: write
-  id-token: write # npm provenance
 
 jobs:
   host:
@@ -46,7 +45,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "Install the SDK: \`npm install @pillkit/sdk\`. Just want to see the pill? Download pillkit-preview-* for your OS and double-click it. See CHANGELOG.md." || true
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "Install the SDK: \`npm install pillkit\`. Just want to see the pill? Download pillkit-preview-* for your OS and double-click it. See CHANGELOG.md." || true
           gh release upload "$GITHUB_REF_NAME" dist/* --clobber
 
   npm:
@@ -61,20 +60,21 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Publish @pillkit/host-* and @pillkit/sdk
+      - name: Pack the npm packages and attach them to the release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::warning::NPM_TOKEN secret is not set; skipping npm publish."
-            exit 0
-          fi
           VERSION="${GITHUB_REF_NAME#v}"
           node scripts/set-npm-version.mjs "$VERSION"
+          mkdir -p tarballs
           for p in darwin-arm64 darwin-x64 win32-x64 linux-x64; do
             mkdir -p npm/host-$p/bin
             cp artifacts/npm-$p/* npm/host-$p/bin/
             chmod +x npm/host-$p/bin/* || true
-            (cd npm/host-$p && npm publish --access public --provenance)
+            (cd npm/host-$p && npm pack --pack-destination ../../tarballs)
           done
-          (cd sdks/node && npm publish --access public --provenance)
+          (cd sdks/node && npm pack --pack-destination ../../tarballs)
+          ls -la tarballs
+          # Installable before (or without) the npm registry:
+          #   npm install <release URL>/pillkit-X.tgz <release URL>/pillkit-host-<os>-<arch>-X.tgz
+          gh release upload "$GITHUB_REF_NAME" tarballs/* --clobber

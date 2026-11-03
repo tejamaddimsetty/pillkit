@@ -1,15 +1,15 @@
-# @pillkit/sdk
+# pillkit
 
 Show your app's notifications as a small **pill next to the clock**: in the
 macOS menu bar and the Windows taskbar. Build status, reminders, launches,
 your own sponsors. One `npm install`, a few lines, no server or account.
 
 ```bash
-npm install @pillkit/sdk
+npm install pillkit
 ```
 
 ```js
-import { PillKit } from "@pillkit/sdk";
+import { PillKit } from "pillkit";
 
 const pill = await PillKit.start({ appId: "my-app" });
 
@@ -73,8 +73,8 @@ always refused.
 
 ## How it works
 
-`@pillkit/sdk` installs a small host program for your platform
-(`@pillkit/host-<os>-<arch>`, picked automatically by npm). One host runs per
+`pillkit` installs a small host program for your platform
+(`pillkit-host-<os>-<arch>`, picked automatically by npm). One host runs per
 user and owns the slot next to the clock; if several apps use Pill Kit,
 their items take turns. It uses about 0.1–0.5 % of one CPU core when idle.
 
@@ -89,7 +89,7 @@ their items take turns. It uses about 0.1–0.5 % of one CPU core when idle.
 Keep the host outside the asar archive:
 
 ```json
-"build": { "asarUnpack": ["**/node_modules/@pillkit/host-*/**"] }
+"build": { "asarUnpack": ["**/node_modules/pillkit-host-*/**"] }
 ```
 
 ### From a shell script

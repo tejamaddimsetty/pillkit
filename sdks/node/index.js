@@ -1,4 +1,4 @@
-// @pillkit/sdk: put your app's notifications in the macOS menu bar and the
+// pillkit: put your app's notifications in the macOS menu bar and the
 // Windows taskbar. Talks to the per-user pillkit-host over a local socket
 // (docs/PROTOCOL.md §5), starting it on first use. Local only: no server,
 // account or network.
@@ -33,11 +33,11 @@ export function endpoint() {
   return path.join(dataDir(), "host.sock");
 }
 
-/** The host binary for this computer, from @pillkit/host-<os>-<arch>. */
+/** The host binary for this computer, from pillkit-host-<os>-<arch>. */
 function bundledHost(opts) {
   const fromPackage = () => {
     try {
-      return require.resolve(`@pillkit/host-${process.platform}-${process.arch}/bin/${EXE}`);
+      return require.resolve(`pillkit-host-${process.platform}-${process.arch}/bin/${EXE}`);
     } catch {
       return null;
     }
@@ -141,7 +141,7 @@ async function connectOrLaunch(opts) {
   if (conn) return conn;
   if (!host) {
     throw new Error(
-      `pillkit: no host for ${process.platform}-${process.arch}. Reinstall @pillkit/sdk, or set hostPath / PILLKIT_HOST_PATH.`,
+      `pillkit: no host for ${process.platform}-${process.arch}. Reinstall pillkit, or set hostPath / PILLKIT_HOST_PATH.`,
     );
   }
   launch(host, opts.startAtLogin !== false);

@@ -1,5 +1,5 @@
-// Sets one version on @pillkit/sdk, its host dependencies and every
-// @pillkit/host-* package, so a release always ships matching pieces.
+// Sets one version on `pillkit`, its host dependencies and every
+// pillkit-host-* package, so a release always ships matching pieces.
 //   node scripts/set-npm-version.mjs 0.3.0
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";

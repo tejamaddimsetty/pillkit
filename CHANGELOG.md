@@ -7,8 +7,8 @@ semantic versioning.
 ## [0.3.0] - 2026-11-03
 
 ### Added
-- **`@pillkit/sdk` on npm** (Node and Electron), with the host bundled per
-  platform as `@pillkit/host-darwin-arm64`, `-darwin-x64`, `-win32-x64` and
+- **`pillkit` on npm** (Node and Electron), with the host bundled per
+  platform as `pillkit-host-darwin-arm64`, `-darwin-x64`, `-win32-x64` and
   `-linux-x64` (npm installs only the matching one). Friendly item shape
   (`title`, `subtitle`, `url`, `icon: "logo.png"`, `onClick`, ...),
   `remove(id)`, `linkSchemes`, `startAtLogin`, and a `npx pillkit` command.
@@ -111,7 +111,7 @@ semantic versioning.
 
 ### Changed
 - **Renamed to Pill Kit** (`pillkit` in code): crates `pillkit-core` and
-  `pillkit-host`, SDK `@pillkit/sdk` (class `PillKit`), environment variables
+  `pillkit-host`, SDK `pillkit` (class `PillKit`), environment variables
   `PILLKIT_*`, data folder `pillkit`, signed envelopes `pillkit1.`.
 
 ### Added
@@ -201,4 +201,4 @@ First public release. `pillkit` is a working codename.
 - Docs at /docs.
 
 ### SDK
-- `@pillkit/sdk` for Node and Electron.
+- `pillkit` for Node and Electron.

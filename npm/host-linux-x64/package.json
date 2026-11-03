@@ -1,7 +1,7 @@
 {
-  "name": "@pillkit/host-linux-x64",
+  "name": "pillkit-host-linux-x64",
   "version": "0.3.0",
-  "description": "The Pill Kit host for linux x64. Installed automatically by @pillkit/sdk.",
+  "description": "The Pill Kit host for linux x64. Installed automatically by pillkit.",
   "license": "Apache-2.0",
   "os": [
     "linux"

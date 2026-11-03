@@ -1,5 +1,5 @@
 {
-  "name": "@pillkit/sdk",
+  "name": "pillkit",
   "version": "0.3.0",
   "description": "Show your app's notifications as a pill in the macOS menu bar and the Windows taskbar.",
   "license": "Apache-2.0",
@@ -22,10 +22,10 @@
     "node": ">=18"
   },
   "optionalDependencies": {
-    "@pillkit/host-darwin-arm64": "0.3.0",
-    "@pillkit/host-darwin-x64": "0.3.0",
-    "@pillkit/host-win32-x64": "0.3.0",
-    "@pillkit/host-linux-x64": "0.3.0"
+    "pillkit-host-darwin-arm64": "0.3.0",
+    "pillkit-host-darwin-x64": "0.3.0",
+    "pillkit-host-win32-x64": "0.3.0",
+    "pillkit-host-linux-x64": "0.3.0"
   },
   "repository": {
     "type": "git",

@@ -33,11 +33,11 @@ and end users can always hide.
 ## For developers: the npm package
 
 ```bash
-npm install @pillkit/sdk
+npm install pillkit
 ```
 
 ```js
-import { PillKit } from "@pillkit/sdk";
+import { PillKit } from "pillkit";
 
 const pill = await PillKit.start({ appId: "my-app" });
 await pill.show({ id: "build", title: "Build passed", subtitle: "main · 2m ago", url: "https://ci.example.com" });
@@ -46,33 +46,21 @@ await pill.show({ id: "build", title: "Build passed", subtitle: "main · 2m ago"
 No server or account: everything runs on the user's computer. Full guide:
 [sdks/node/README.md](sdks/node/README.md).
 
-## Quick start
+## Quick start (try it without code)
 
-Clone or download the repo, then:
+- **Windows:** download the repo and double-click `install.cmd`
+- **macOS / Linux:** `./install.sh`
 
-- **Windows:** paste into PowerShell:
-  `irm https://raw.githubusercontent.com/tejamaddimsetty/pillkit/main/scripts/get.ps1 | iex`
-  (or double-click `install.cmd` in the downloaded folder)
-- **macOS / Linux:** run `./install.sh`
+It installs the host, starts it at login, and shows a demo pill. Then try
+`pillkit-host show --title "Hello"`. Stop with `stop.cmd` / `./stop.sh`.
+No server, account or Python needed.
 
-It sets up the local server, gets the host (downloaded from the latest release,
-or built with `cargo` if you have Rust), starts everything, opens the portal and
-registers a demo app. The widget appears next to your clock within seconds.
-Stop everything with `stop.cmd` / `./stop.sh`.
-
-Logins on your local copy:
-
-- `demo@pillkit.dev` / `demo-password`: a developer, as your customers see it
-- `admin@pillkit.dev` / `admin-password`: the platform admin console
-
-In production, create your own admin with `python app.py create-admin you@yourdomain.com`.
-Full documentation is served by the portal at http://localhost:5050/docs.
-Testing on Windows: [docs/WINDOWS_TESTING.md](docs/WINDOWS_TESTING.md).
+Integrating into your own app: [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
 ## Using it in your app
 
 ```js
-import { PillKit } from "@pillkit/sdk";
+import { PillKit } from "pillkit";
 
 const bar = await PillKit.start({ appId: "app_…", key: "pk_…", bundleId: "com.acme.clip" });
 await bar.show({ id: "build", title: "Build passed", subtitle: "main · 2m ago", action: { type: "callback", name: "open-build" } });
@@ -88,7 +76,7 @@ your code, or show a card. Sponsored items are always labelled.
 crates/pillkit-core   model, signature checks, URL policy, rotation, renderer (pure Rust, tested)
 crates/pillkit-host   the host: IPC, networking, controller, macOS + Windows bar code
 server/              Flask portal, admin console and API (SQLite locally, MySQL in production)
-sdks/node            @pillkit/sdk for Node and Electron
+sdks/node            pillkit for Node and Electron
 docs/PROTOCOL.md     the contract between all of the above
 rfcs/                design proposals
 ```

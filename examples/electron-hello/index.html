@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'">
+<title>Pill Kit · Electron hello</title>
+<body style="font: 15px system-ui, sans-serif; padding: 24px">
+  <h2 style="margin-top: 0">Look next to your clock</h2>
+  <p>This app put a pill in your menu bar or taskbar.</p>
+  <button id="b" style="font: inherit; padding: 8px 14px">Update the pill</button>
+  <span id="n"></span>
+  <script>
+    document.getElementById("b").onclick = async () => {
+      document.getElementById("n").textContent = " pressed " + (await window.pillkit.bump()) + "×";
+    };
+  </script>
+</body>
