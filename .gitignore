@@ -10,3 +10,4 @@ server/*.db
 
 # Host binaries are copied in by the release workflow
 npm/*/bin/
+.release-*/

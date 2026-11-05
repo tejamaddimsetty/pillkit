@@ -10,10 +10,18 @@
     "arm64"
   ],
   "files": [
-    "bin/"
+    "bin/",
+    "README.md"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tejamaddimsetty/pillkit.git"
-  }
+  },
+  "homepage": "https://github.com/tejamaddimsetty/pillkit#readme",
+  "keywords": [
+    "pillkit",
+    "menu-bar",
+    "taskbar",
+    "notifications"
+  ]
 }
