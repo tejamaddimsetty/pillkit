@@ -1,7 +1,7 @@
 {
   "name": "pillkit",
   "version": "0.3.0",
-  "description": "Show your app's notifications as a pill in the macOS menu bar and the Windows taskbar.",
+  "description": "Show your desktop app's notifications as a small pill widget in the macOS menu bar and the Windows taskbar. Free, local only, works with Electron and Node.js.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "index.js",
@@ -34,16 +34,32 @@
   },
   "homepage": "https://github.com/tejamaddimsetty/pillkit#readme",
   "keywords": [
-    "menu bar",
+    "menubar",
+    "menu-bar",
+    "macos-menu-bar",
+    "tray",
+    "system-tray",
     "taskbar",
+    "windows-taskbar",
+    "status-bar",
     "notification",
-    "status",
+    "notifications",
     "widget",
+    "desktop",
     "electron",
+    "electron-tray",
+    "nodejs",
     "macos",
-    "windows"
+    "windows",
+    "cross-platform",
+    "pill",
+    "pillkit"
   ],
   "bin": {
     "pillkit": "cli.js"
+  },
+  "author": "Tej Maddimsetty",
+  "bugs": {
+    "url": "https://github.com/tejamaddimsetty/pillkit/issues"
   }
 }

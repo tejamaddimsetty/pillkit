@@ -1,7 +1,7 @@
 {
   "name": "pillkit-host-darwin-x64",
   "version": "0.3.0",
-  "description": "The Pill Kit host for darwin x64. Installed automatically by pillkit.",
+  "description": "Pill Kit host binary for darwin-x64 (menu bar / taskbar widget). Installed automatically by the pillkit package.",
   "license": "Apache-2.0",
   "os": [
     "darwin"
@@ -20,8 +20,13 @@
   "homepage": "https://github.com/tejamaddimsetty/pillkit#readme",
   "keywords": [
     "pillkit",
-    "menu-bar",
+    "menubar",
     "taskbar",
-    "notifications"
-  ]
+    "tray",
+    "notifications",
+    "widget",
+    "electron",
+    "darwin-x64"
+  ],
+  "author": "Tej Maddimsetty"
 }
